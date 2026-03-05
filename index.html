@@ -11,13 +11,15 @@
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Inter:wght@300;400;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        body { font-family: 'Inter', sans-serif; }
+        body { font-family: 'Inter', sans-serif; scroll-behavior: smooth; }
         .font-serif { font-family: 'Playfair Display', serif; }
         .font-mono { font-family: 'JetBrains Mono', monospace; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         @keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fade-in { animation: fade-in 0.7s ease-out forwards; }
+        @keyframes pulse-soft { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+        .animate-pulse-soft { animation: pulse-soft 2s infinite ease-in-out; }
     </style>
 </head>
 <body class="bg-[#F8FAFC] text-[#0F172A]">
@@ -53,15 +55,6 @@
                     { id: 'eb-05', title: 'Yield Dynamics', price: 55.00, tag: 'Expert', image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&q=80&w=800&h=1000' },
                     { id: 'eb-06', title: 'Portfolio Balancing', price: 32.00, tag: 'Stable', image: 'https://images.unsplash.com/photo-1611974714013-3c8c6133f1f7?auto=format&fit=crop&q=80&w=800&h=1000' },
                 ]
-            },
-            {
-                id: 'cat-3',
-                name: 'Technical Architecture',
-                books: [
-                    { id: 'eb-07', title: 'Web3 Architectures', price: 39.00, tag: 'Technical', image: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&q=80&w=800&h=1000' },
-                    { id: 'eb-08', title: 'Smart Contract Design', price: 49.00, tag: 'Advanced', image: 'https://images.unsplash.com/photo-1639322537504-6427a16b0a28?auto=format&fit=crop&q=80&w=800&h=1000' },
-                    { id: 'eb-09', title: 'ZK-Rollup Deep Dive', price: 65.00, tag: 'Critical', image: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc48?auto=format&fit=crop&q=80&w=800&h=1000' },
-                ]
             }
         ];
 
@@ -70,23 +63,27 @@
                 hero: "The Standard for Digital Assets.",
                 subHero: "Secure acquisition of Genesis ERC20 tokens and curated digital literature. Built on Polygon, designed for the European digital economy.",
                 tokenTitle: "Genesis Utility Token",
-                buyNow: "Complete Purchase",
+                buyNow: "Authorize & Purchase",
                 email: "Delivery Email",
                 wallet: "Polygon Destination",
                 terms: "I acknowledge that transfers on the Polygon Network are irreversible and non-refundable upon delivery.",
-                status: ["Authorizing...", "Verified", "Minting...", "Delivered"],
-                connect: "Connect Wallet"
+                status: ["Creating Checkout...", "Verifying Payment", "Pending Delivery", "Asset Delivered"],
+                connect: "Connect Wallet",
+                walletProvider: "Select Provider",
+                waitingSign: "Waiting for Signature..."
             },
             FR: {
                 hero: "La Référence des Actifs Numériques.",
                 subHero: "Acquisition sécurisée de jetons Genesis ERC20 et littérature numérique. Conçu sur Polygon pour l'économie européenne.",
                 tokenTitle: "Jeton Utilitaire Genesis",
-                buyNow: "Finaliser l'Achat",
+                buyNow: "Autoriser et Acheter",
                 email: "Email de Livraison",
                 wallet: "Destination Polygon",
                 terms: "Je reconnais que les transferts sur le réseau Polygon sont irréversibles et non remboursables.",
-                status: ["Autorisation...", "Vérifié", "Frappe...", "Livré"],
-                connect: "Connecter"
+                status: ["Création du Paiement...", "Vérification", "Livraison en cours", "Actif Livré"],
+                connect: "Connecter",
+                walletProvider: "Choisir un Fournisseur",
+                waitingSign: "Attente de Signature..."
             }
         };
 
@@ -95,41 +92,74 @@
             const [view, setView] = useState('home');
             const [selected, setSelected] = useState(null);
             const [step, setStep] = useState(0);
+            
+            // Wallet States
+            const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
+            const [isConnecting, setIsConnecting] = useState(false);
             const [isConnected, setIsConnected] = useState(false);
+            const [walletProvider, setWalletProvider] = useState(null);
+            
+            // Form States
             const [email, setEmail] = useState('');
-            const [wallet, setWallet] = useState('');
+            const [qty, setQty] = useState(1);
+            const [manualWallet, setManualWallet] = useState('');
             const [accepted, setAccepted] = useState(false);
 
-            useEffect(() => { lucide.createIcons(); }, [view, step]);
+            useEffect(() => { lucide.createIcons(); }, [view, step, isWalletModalOpen, isConnecting]);
 
             const t = TRANSLATIONS[lang];
-            const total = selected === 'token' ? 12.50 : (selected?.price || 0);
+            const activeWallet = isConnected ? "0x71C7...976F" : manualWallet;
+            const total = selected === 'token' ? (qty * TOKEN_UNIT_PRICE) : (selected?.price || 0);
+
+            const handleConnect = (provider) => {
+                setIsConnecting(true);
+                setWalletProvider(provider);
+                setTimeout(() => {
+                    setIsConnecting(false);
+                    setIsConnected(true);
+                    setIsWalletModalOpen(false);
+                }, 1500);
+            };
 
             const handlePurchase = () => {
+                if (total > 1000) {
+                    alert("Maximum purchase per transaction is €1000.00");
+                    return;
+                }
                 setView('status');
                 const interval = setInterval(() => {
                     setStep(s => {
                         if (s >= 3) { clearInterval(interval); return 3; }
                         return s + 1;
                     });
-                }, 2000);
+                }, 2500);
             };
 
             return (
-                <div className="min-h-screen">
+                <div className="min-h-screen selection:bg-blue-100">
                     {/* NAV */}
-                    <nav className="fixed top-0 w-full z-50 bg-[#0F172A] text-white px-6 py-4 shadow-2xl">
+                    <nav className="fixed top-0 w-full z-50 bg-[#0F172A] text-white px-6 py-4 shadow-2xl border-b border-blue-900/30">
                         <div className="max-w-7xl mx-auto flex justify-between items-center">
-                            <div className="flex items-center gap-2 cursor-pointer" onClick={() => { setView('home'); setStep(0); }}>
-                                <div className="w-10 h-10 bg-blue-600 flex items-center justify-center rounded-lg"><Icon name="layers" /></div>
+                            <div className="flex items-center gap-2 cursor-pointer group" onClick={() => { setView('home'); setStep(0); }}>
+                                <div className="w-10 h-10 bg-blue-600 flex items-center justify-center rounded-lg shadow-[0_0_15px_rgba(37,99,235,0.4)] group-hover:rotate-12 transition-all">
+                                    <Icon name="layers" />
+                                </div>
                                 <span className="font-serif italic text-2xl tracking-tighter">LuxeDigital</span>
                             </div>
-                            <div className="flex items-center gap-4">
-                                <select value={lang} onChange={e => setLang(e.target.value)} className="bg-blue-900/50 text-xs font-bold border-none rounded-full px-4 py-2 outline-none">
+                            <div className="flex items-center gap-6">
+                                <div className="hidden md:flex gap-6 text-[10px] font-bold uppercase tracking-[0.2em] text-blue-300/40">
+                                    <span className="hover:text-blue-400 cursor-pointer transition-colors">Ecosystem</span>
+                                    <span className="hover:text-blue-400 cursor-pointer transition-colors">Governance</span>
+                                </div>
+                                <select value={lang} onChange={e => setLang(e.target.value)} className="bg-blue-900/40 text-[10px] font-bold border border-blue-800 rounded-full px-3 py-1.5 outline-none cursor-pointer">
                                     <option value="EN">EN</option>
                                     <option value="FR">FR</option>
                                 </select>
-                                <button onClick={() => setIsConnected(!isConnected)} className="bg-blue-600 px-6 py-2.5 rounded-lg text-[10px] font-bold uppercase tracking-widest shadow-lg">
+                                <button 
+                                    onClick={() => isConnected ? setIsConnected(false) : setIsWalletModalOpen(true)} 
+                                    className="bg-blue-600 hover:bg-blue-500 transition-colors px-6 py-2.5 rounded-lg text-[10px] font-bold uppercase tracking-widest shadow-lg flex items-center gap-2"
+                                >
+                                    <Icon name="wallet" size={14} />
                                     {isConnected ? "0x71...976F" : t.connect}
                                 </button>
                             </div>
@@ -139,47 +169,86 @@
                     {view === 'home' && (
                         <main className="pt-32 animate-fade-in">
                             {/* HERO */}
-                            <section className="max-w-7xl mx-auto px-6 py-16 grid lg:grid-cols-2 gap-16 items-center">
-                                <div className="space-y-8">
-                                    <span className="text-[10px] font-bold text-blue-600 uppercase tracking-widest border border-blue-200 px-3 py-1 rounded-full bg-blue-50">v4.2 Institutional</span>
-                                    <h1 className="text-6xl md:text-7xl font-serif leading-[0.95] text-slate-900">{t.hero}</h1>
-                                    <p className="text-lg text-slate-500 font-light leading-relaxed">{t.subHero}</p>
-                                    <button onClick={() => { setSelected('token'); setView('checkout'); }} className="bg-blue-600 text-white px-10 py-5 rounded-xl font-bold uppercase tracking-widest text-xs flex items-center gap-3 shadow-xl">Acquire Token <Icon name="arrow-right" size={16}/></button>
-                                </div>
-                                <div className="bg-[#0F172A] p-12 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden">
-                                    <Icon name="cpu" size={48} className="text-blue-500 mb-8" />
-                                    <h3 className="text-4xl font-serif mb-4">{t.tokenTitle}</h3>
-                                    <div className="space-y-4 text-blue-300 font-light">
-                                        <p className="flex items-center gap-2"><Icon name="check" size={16}/> Deterministic Polygon Fulfilment</p>
-                                        <p className="flex items-center gap-2"><Icon name="check" size={16}/> Fixed Institutional Pricing</p>
+                            <section className="max-w-7xl mx-auto px-6 py-20 grid lg:grid-cols-2 gap-20 items-center">
+                                <div className="space-y-10">
+                                    <div className="inline-flex items-center gap-2 bg-blue-50 border border-blue-100 px-3 py-1 rounded-full">
+                                        <div className="w-2 h-2 rounded-full bg-blue-600 animate-pulse"></div>
+                                        <span className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">Active on Polygon Mainnet</span>
                                     </div>
-                                    <div className="mt-12 pt-12 border-t border-white/10">
-                                        <p className="text-5xl font-light">€12.50</p>
+                                    <h1 className="text-6xl md:text-8xl font-serif leading-[0.95] text-slate-900 tracking-tight">{t.hero}</h1>
+                                    <p className="text-xl text-slate-500 font-light leading-relaxed max-w-lg">{t.subHero}</p>
+                                    <div className="flex gap-4">
+                                        <button onClick={() => { setSelected('token'); setView('checkout'); }} className="bg-blue-600 hover:bg-blue-700 text-white px-10 py-5 rounded-xl font-bold uppercase tracking-widest text-xs flex items-center gap-3 shadow-2xl shadow-blue-600/20 transition-all hover:-translate-y-1">Acquire Token <Icon name="arrow-right" size={16}/></button>
+                                        <div className="flex flex-col justify-center px-4">
+                                            <span className="text-[10px] font-bold uppercase text-slate-400">Fixed Rate</span>
+                                            <span className="font-mono text-blue-900 font-bold">€{TOKEN_UNIT_PRICE}/unit</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="relative">
+                                    <div className="bg-[#0F172A] p-12 rounded-[3rem] text-white shadow-2xl relative overflow-hidden group">
+                                        <div className="flex justify-between items-start mb-12">
+                                            <div className="w-16 h-16 bg-blue-600/20 border border-blue-500/30 rounded-2xl flex items-center justify-center">
+                                                <Icon name="cpu" size={32} className="text-blue-500" />
+                                            </div>
+                                            <span className="text-[10px] font-bold uppercase tracking-widest text-blue-400">Digital Identity Required</span>
+                                        </div>
+                                        <h3 className="text-4xl font-serif mb-6">{t.tokenTitle}</h3>
+                                        <div className="space-y-5 text-blue-300 font-light text-sm">
+                                            <p className="flex items-center gap-3"><Icon name="shield-check" size={18} className="text-blue-500"/> Immutable ERC20 Protocol</p>
+                                            <p className="flex items-center gap-3"><Icon name="zap" size={18} className="text-blue-500"/> Deterministic Auto-Fulfilment</p>
+                                            <p className="flex items-center gap-3"><Icon name="globe" size={18} className="text-blue-500"/> Native Polygon Settlement</p>
+                                        </div>
+                                        <div className="mt-16 pt-10 border-t border-white/10 flex justify-between items-end">
+                                            <div>
+                                                <p className="text-[10px] font-bold uppercase text-slate-500 mb-2">Initial Liquidity</p>
+                                                <p className="text-5xl font-light tracking-tighter text-blue-50">€{TOKEN_UNIT_PRICE.toFixed(2)}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <Icon name="refresh-ccw" size={20} className="text-blue-500/50 mb-2 ml-auto animate-spin-slow" />
+                                                <span className="text-[10px] uppercase font-bold text-slate-500">24h Settlement</span>
+                                            </div>
+                                        </div>
+                                        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/5 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/2"></div>
                                     </div>
                                 </div>
                             </section>
 
                             {/* CATEGORIES */}
-                            <section className="bg-white py-24 border-y">
-                                <div className="max-w-7xl mx-auto px-6 space-y-24">
+                            <section className="bg-white py-24 border-y border-slate-100">
+                                <div className="max-w-7xl mx-auto px-6">
+                                    <div className="flex justify-between items-end mb-16">
+                                        <div className="space-y-4">
+                                            <h3 className="text-[11px] font-bold uppercase tracking-[0.4em] text-blue-600">{t.ebooksTitle}</h3>
+                                            <h2 className="text-4xl font-serif text-slate-900">Expert Insights & Architecture</h2>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <div className="w-8 h-1 bg-blue-600 rounded-full"></div>
+                                            <div className="w-4 h-1 bg-slate-100 rounded-full"></div>
+                                        </div>
+                                    </div>
+
                                     {CATEGORIES.map(cat => (
-                                        <div key={cat.id}>
-                                            <h3 className="text-[11px] font-bold uppercase tracking-[0.3em] text-blue-400 mb-10">{cat.name}</h3>
+                                        <div key={cat.id} className="mb-20 last:mb-0">
+                                            <div className="flex items-center gap-4 mb-10">
+                                                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 whitespace-nowrap">{cat.name}</span>
+                                                <div className="w-full h-[1px] bg-slate-100"></div>
+                                            </div>
                                             <div className="flex gap-10 overflow-x-auto pb-10 no-scrollbar snap-x">
                                                 {cat.books.map(book => (
                                                     <div key={book.id} onClick={() => { setSelected(book); setView('checkout'); }} className="flex-shrink-0 w-80 group cursor-pointer snap-start">
-                                                        <div className="aspect-[3/4] rounded-3xl overflow-hidden mb-8 shadow-2xl group-hover:-translate-y-3 transition-all duration-700 relative">
+                                                        <div className="aspect-[3/4] rounded-3xl overflow-hidden mb-8 shadow-xl group-hover:shadow-2xl group-hover:-translate-y-3 transition-all duration-700 relative bg-slate-100">
                                                             <img src={book.image} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000" />
-                                                            <div className="absolute inset-0 bg-gradient-to-t from-blue-900/80 to-transparent opacity-40"></div>
-                                                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                <span className="bg-white text-blue-900 px-8 py-3 rounded-xl font-bold uppercase text-[10px] tracking-widest shadow-2xl">Acquire</span>
+                                                            <div className="absolute inset-0 bg-gradient-to-t from-blue-950/80 to-transparent opacity-40 group-hover:opacity-60 transition-opacity"></div>
+                                                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all translate-y-4 group-hover:translate-y-0">
+                                                                <span className="bg-white text-blue-900 px-8 py-3 rounded-xl font-bold uppercase text-[10px] tracking-widest shadow-2xl">Acquire Literature</span>
                                                             </div>
                                                         </div>
-                                                        <div className="flex justify-between items-center mb-2">
-                                                            <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-1 rounded font-bold uppercase tracking-widest">{book.tag}</span>
-                                                            <span className="font-mono text-blue-900 font-bold">€{book.price.toFixed(2)}</span>
+                                                        <div className="flex justify-between items-center mb-2 px-1">
+                                                            <span className="text-[9px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded font-bold uppercase tracking-widest">{book.tag}</span>
+                                                            <span className="font-mono text-blue-900 font-bold text-sm">€{book.price.toFixed(2)}</span>
                                                         </div>
-                                                        <h4 className="font-serif italic text-xl">{book.title}</h4>
+                                                        <h4 className="font-serif italic text-xl px-1 group-hover:text-blue-600 transition-colors">{book.title}</h4>
                                                     </div>
                                                 ))}
                                             </div>
@@ -192,34 +261,134 @@
 
                     {view === 'checkout' && (
                         <main className="pt-32 pb-24 max-w-6xl mx-auto px-6 animate-fade-in">
-                            <button onClick={() => setView('home')} className="flex items-center gap-2 text-xs font-bold text-slate-400 hover:text-blue-600 mb-12 uppercase tracking-widest"><Icon name="arrow-left" size={14}/> Back</button>
-                            <div className="grid lg:grid-cols-12 gap-16">
-                                <div className="lg:col-span-7 space-y-12">
-                                    <h2 className="text-6xl font-serif text-slate-900">{selected === 'token' ? t.tokenTitle : selected.title}</h2>
-                                    <div className="space-y-8 pt-12 border-t">
-                                        <div className="space-y-4">
-                                            <label className="text-[11px] font-bold uppercase text-slate-500 tracking-widest">{t.email}</label>
-                                            <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full border-b-2 border-slate-100 py-4 outline-none focus:border-blue-600 text-2xl font-light" placeholder="email@example.com" />
+                            <button onClick={() => setView('home')} className="flex items-center gap-2 text-[10px] font-bold text-slate-400 hover:text-blue-600 mb-12 uppercase tracking-widest transition-colors"><Icon name="arrow-left" size={14}/> Back to Catalog</button>
+                            
+                            <div className="grid lg:grid-cols-12 gap-20">
+                                <div className="lg:col-span-7 space-y-16">
+                                    <div className="space-y-4">
+                                        <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-blue-600">Purchase Authorization</span>
+                                        <h2 className="text-6xl font-serif text-slate-900 leading-tight">{selected === 'token' ? t.tokenTitle : selected.title}</h2>
+                                    </div>
+
+                                    <div className="space-y-12 pt-12 border-t border-slate-100">
+                                        {/* EMAIL FIELD */}
+                                        <div className="space-y-6">
+                                            <div className="flex justify-between">
+                                                <label className="text-[10px] font-bold uppercase text-slate-500 tracking-widest">{t.email}</label>
+                                                <span className="text-[10px] text-slate-300">Used for transaction receipts</span>
+                                            </div>
+                                            <input 
+                                                type="email" 
+                                                value={email} 
+                                                onChange={e => setEmail(e.target.value)} 
+                                                className="w-full bg-transparent border-b-2 border-slate-100 py-6 outline-none focus:border-blue-600 text-3xl font-light transition-colors placeholder:text-slate-200" 
+                                                placeholder="curator@example.com" 
+                                            />
                                         </div>
+
+                                        {/* TOKEN SPECIFIC FIELDS */}
                                         {selected === 'token' && (
-                                            <div className="space-y-4">
-                                                <label className="text-[11px] font-bold uppercase text-slate-500 tracking-widest">{t.wallet}</label>
-                                                <input type="text" value={isConnected ? "0x71...976F" : wallet} onChange={e => setWallet(e.target.value)} disabled={isConnected} className="w-full border-b-2 border-slate-100 py-4 outline-none focus:border-blue-600 text-lg font-mono" placeholder="0x..." />
+                                            <div className="grid md:grid-cols-2 gap-12 animate-fade-in">
+                                                <div className="space-y-6">
+                                                    <label className="text-[10px] font-bold uppercase text-slate-500 tracking-widest">Quantity</label>
+                                                    <input 
+                                                        type="number" 
+                                                        min="1"
+                                                        step="1"
+                                                        value={qty} 
+                                                        onChange={e => setQty(Math.max(1, parseInt(e.target.value) || 1))} 
+                                                        className="w-full bg-transparent border-b-2 border-slate-100 py-6 outline-none focus:border-blue-600 text-4xl font-mono text-blue-900 transition-colors" 
+                                                    />
+                                                </div>
+                                                <div className="space-y-6">
+                                                    <label className="text-[10px] font-bold uppercase text-slate-500 tracking-widest">Network</label>
+                                                    <div className="py-6 border-b-2 border-slate-100 flex items-center justify-between">
+                                                        <span className="text-xl font-mono text-slate-300">Polygon L2</span>
+                                                        <div className="w-3 h-3 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]"></div>
+                                                    </div>
+                                                </div>
                                             </div>
                                         )}
+
+                                        {/* WALLET FIELD */}
+                                        <div className="space-y-6">
+                                            <label className="text-[10px] font-bold uppercase text-slate-500 tracking-widest">{t.wallet}</label>
+                                            {!isConnected ? (
+                                                <div className="flex flex-col md:flex-row gap-6">
+                                                    <button 
+                                                        onClick={() => setIsWalletModalOpen(true)} 
+                                                        className="flex-1 border-2 border-blue-50 bg-white py-6 rounded-2xl flex items-center justify-center gap-4 text-xs font-bold hover:bg-blue-50 hover:border-blue-200 transition-all text-blue-900 shadow-sm"
+                                                    >
+                                                        <Icon name="wallet" size={18} /> {t.connect}
+                                                    </button>
+                                                    <input 
+                                                        type="text" 
+                                                        value={manualWallet}
+                                                        onChange={e => setManualWallet(e.target.value)}
+                                                        className="flex-1 border-2 border-slate-50 rounded-2xl px-8 py-6 outline-none focus:border-blue-600 text-sm font-mono shadow-sm bg-white" 
+                                                        placeholder="Manual destination (0x...)" 
+                                                    />
+                                                </div>
+                                            ) : (
+                                                <div className="p-8 bg-blue-50 rounded-3xl border border-blue-100 flex items-center justify-between shadow-inner animate-fade-in">
+                                                    <div className="flex items-center gap-4">
+                                                        <Icon name="shield-check" size={24} className="text-blue-600" />
+                                                        <div>
+                                                            <p className="text-[9px] font-bold text-blue-400 uppercase tracking-widest mb-1">Authenticated via {walletProvider}</p>
+                                                            <p className="font-mono text-xl text-blue-900 tracking-tight">0x71C7656EC7ab88b098defB751B7401B5f6d8976F</p>
+                                                        </div>
+                                                    </div>
+                                                    <button onClick={() => setIsConnected(false)} className="text-[10px] font-bold uppercase text-blue-400 hover:text-red-500 transition-colors">Change Destination</button>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
+
                                 <div className="lg:col-span-5">
-                                    <div className="bg-white p-12 rounded-[2.5rem] shadow-2xl border border-blue-50 space-y-10">
-                                        <div className="space-y-4 border-b pb-8">
-                                            <div className="flex justify-between"><span>Subtotal</span> <span className="font-mono">€{total.toFixed(2)}</span></div>
-                                            <div className="flex justify-between items-end pt-4"><span className="text-2xl font-serif italic">Total</span> <span className="text-5xl font-light text-blue-600">€{total.toFixed(2)}</span></div>
+                                    <div className="sticky top-32 bg-white p-12 rounded-[3rem] shadow-[0_32px_80px_rgba(15,23,42,0.1)] border border-blue-50 space-y-10">
+                                        <h3 className="text-3xl font-serif italic border-b border-blue-50 pb-8">Valuation Summary</h3>
+                                        
+                                        <div className="space-y-6">
+                                            <div className="flex justify-between text-sm">
+                                                <span className="text-slate-400">Inventory Value</span>
+                                                <span className="font-mono font-bold">€{total.toFixed(2)}</span>
+                                            </div>
+                                            <div className="flex justify-between text-sm">
+                                                <span className="text-slate-400">Processing & Gas</span>
+                                                <span className="text-green-600 font-bold uppercase text-[10px] tracking-widest">Sponsored</span>
+                                            </div>
+                                            <div className="pt-8 mt-4 border-t border-blue-50 flex justify-between items-end">
+                                                <span className="text-2xl font-serif italic text-slate-900">Final Total</span>
+                                                <span className="text-5xl font-light text-blue-600 tracking-tighter">€{total.toFixed(2)}</span>
+                                            </div>
                                         </div>
-                                        <label className="flex gap-4 cursor-pointer">
-                                            <input type="checkbox" checked={accepted} onChange={e => setAccepted(e.target.checked)} className="mt-1 w-6 h-6 border-slate-300 rounded text-blue-600 focus:ring-0" />
-                                            <span className="text-xs text-slate-400 leading-relaxed">{t.terms}</span>
-                                        </label>
-                                        <button onClick={handlePurchase} disabled={!accepted || !email} className="w-full bg-[#0F172A] text-white py-6 rounded-2xl font-bold uppercase tracking-widest text-xs disabled:opacity-20 shadow-2xl shadow-blue-900/20">Authorize Purchase</button>
+
+                                        <div className="space-y-8">
+                                            <label className="flex gap-4 cursor-pointer group">
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={accepted} 
+                                                    onChange={e => setAccepted(e.target.checked)} 
+                                                    className="mt-1 w-6 h-6 border-slate-200 rounded-lg text-blue-600 focus:ring-0 transition-all group-hover:border-blue-400" 
+                                                />
+                                                <span className="text-xs text-slate-400 leading-relaxed transition-colors group-hover:text-slate-500">{t.terms}</span>
+                                            </label>
+
+                                            <button 
+                                                onClick={handlePurchase} 
+                                                disabled={!accepted || !email || (!isConnected && !manualWallet)} 
+                                                className="w-full bg-[#0F172A] hover:bg-blue-600 text-white py-6 rounded-2xl font-bold uppercase tracking-[0.2em] text-xs disabled:opacity-20 shadow-2xl shadow-blue-900/20 transition-all transform active:scale-95"
+                                            >
+                                                {t.buyNow}
+                                            </button>
+
+                                            <div className="flex justify-center items-center gap-8 opacity-20 grayscale brightness-150">
+                                                <div className="w-12 h-8 bg-slate-300 rounded"></div>
+                                                <div className="w-12 h-8 bg-slate-300 rounded"></div>
+                                                <div className="w-12 h-8 bg-slate-300 rounded"></div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -227,40 +396,144 @@
                     )}
 
                     {view === 'status' && (
-                        <main className="pt-48 pb-24 text-center max-w-xl mx-auto px-6">
-                            <div className="flex justify-center mb-16">
-                                <div className={`w-32 h-32 rounded-full flex items-center justify-center transition-all ${step === 3 ? 'bg-green-50' : 'bg-blue-50'}`}>
-                                    {step === 3 ? <Icon name="check" size={48} className="text-green-600" /> : <Icon name="refresh-ccw" size={32} className="text-blue-600 animate-spin" />}
+                        <main className="pt-48 pb-24 text-center max-w-2xl mx-auto px-6 animate-fade-in">
+                            <div className="flex justify-center mb-16 relative">
+                                <div className={`w-48 h-48 rounded-full flex items-center justify-center transition-all duration-1000 ${step === 3 ? 'bg-green-50 shadow-[0_0_50px_rgba(34,197,94,0.15)]' : 'bg-blue-50'}`}>
+                                    {step === 3 ? (
+                                        <Icon name="check" size={64} className="text-green-600 animate-fade-in" />
+                                    ) : (
+                                        <Icon name="refresh-ccw" size={48} className="text-blue-600 animate-spin" />
+                                    )}
                                 </div>
+                                {step < 3 && (
+                                    <div className="absolute -bottom-10 left-1/2 -translate-x-1/2">
+                                        <span className="text-[10px] font-mono uppercase text-blue-400 animate-pulse-soft tracking-widest">Awaiting Network Confirmation...</span>
+                                    </div>
+                                )}
                             </div>
-                            <h2 className="text-5xl font-serif italic mb-4">{t.status[step]}</h2>
-                            <p className="text-xs font-mono text-slate-400 uppercase tracking-widest mb-12">LXD-POLY-REF-{Math.random().toString(36).substring(7).toUpperCase()}</p>
+                            
+                            <h2 className="text-5xl font-serif italic mb-6 leading-tight">{t.status[step]}</h2>
+                            <div className="flex justify-center items-center gap-3 mb-16">
+                                <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">Transaction ID</span>
+                                <span className="font-mono text-xs text-blue-900 bg-blue-50 px-3 py-1 rounded">LXD-POLY-TX-{Math.random().toString(36).substring(2, 10).toUpperCase()}</span>
+                            </div>
+
+                            <div className="grid grid-cols-4 gap-4 max-w-sm mx-auto mb-16">
+                                {[0, 1, 2, 3].map(i => (
+                                    <div key={i} className={`h-1.5 rounded-full transition-all duration-700 ${i <= step ? 'bg-blue-600 shadow-[0_0_8px_rgba(37,99,235,0.4)]' : 'bg-slate-100'}`}></div>
+                                ))}
+                            </div>
+
                             {step === 3 && (
-                                <button onClick={() => window.location.reload()} className="bg-[#0F172A] text-white px-12 py-5 rounded-xl font-bold uppercase text-[10px] tracking-[0.2em]">Return to Library</button>
+                                <div className="space-y-6 animate-fade-in">
+                                    <div className="bg-white border border-slate-100 p-8 rounded-3xl shadow-lg max-w-sm mx-auto text-left space-y-3">
+                                        <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest mb-2">Fulfilment Log</p>
+                                        <p className="text-xs font-mono text-slate-500">✓ Signature Verified</p>
+                                        <p className="text-xs font-mono text-slate-500">✓ On-Chain Transfer Dispatched</p>
+                                        <p className="text-xs font-mono text-slate-500">✓ Digital Receipt Sent</p>
+                                    </div>
+                                    <button 
+                                        onClick={() => window.location.reload()} 
+                                        className="bg-[#0F172A] hover:bg-blue-600 text-white px-14 py-6 rounded-2xl font-bold uppercase text-[10px] tracking-[0.3em] transition-all shadow-xl shadow-blue-900/10 active:scale-95"
+                                    >
+                                        Return to Ecosystem
+                                    </button>
+                                </div>
                             )}
                         </main>
                     )}
 
+                    {/* WALLET MODAL */}
+                    {isWalletModalOpen && (
+                        <div className="fixed inset-0 z-[100] bg-[#0F172A]/80 backdrop-blur-xl flex items-center justify-center p-6 animate-fade-in">
+                            <div className="bg-white w-full max-w-lg rounded-[3.5rem] p-16 space-y-12 shadow-2xl relative overflow-hidden border border-blue-50">
+                                <button onClick={() => setIsWalletModalOpen(false)} className="absolute top-10 right-10 text-slate-300 hover:text-black transition-colors">
+                                    <Icon name="x" size={32} />
+                                </button>
+                                
+                                <div className="space-y-4">
+                                    <h3 className="text-4xl font-serif italic text-slate-900">{t.walletProvider}</h3>
+                                    <p className="text-slate-500 font-light text-sm">Secure bridge to decentralized identity.</p>
+                                </div>
+
+                                <div className="space-y-4">
+                                    {['MetaMask', 'WalletConnect', 'Coinbase'].map(name => (
+                                        <button 
+                                            key={name}
+                                            disabled={isConnecting}
+                                            onClick={() => handleConnect(name)}
+                                            className="w-full flex items-center justify-between p-8 border-2 border-slate-50 rounded-[2rem] hover:bg-blue-50 hover:border-blue-200 transition-all text-left group disabled:opacity-50"
+                                        >
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center group-hover:bg-white transition-colors">
+                                                    <Icon name="link" size={20} className="text-slate-400 group-hover:text-blue-600" />
+                                                </div>
+                                                <span className="font-bold text-xs uppercase tracking-widest text-slate-700">{name}</span>
+                                            </div>
+                                            <Icon name="chevron-right" size={18} className="text-slate-200 group-hover:text-blue-600 group-hover:translate-x-1 transition-all" />
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {isConnecting && (
+                                    <div className="absolute inset-0 bg-white/95 backdrop-blur-sm flex flex-col items-center justify-center gap-6 animate-fade-in">
+                                        <Icon name="refresh-ccw" size={48} className="text-blue-600 animate-spin" />
+                                        <p className="text-xs font-bold uppercase tracking-[0.4em] text-blue-900">{t.waitingSign}</p>
+                                    </div>
+                                )}
+                                
+                                <div className="text-center pt-4">
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-300">Audited Security Protocol</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* FOOTER */}
-                    <footer className="bg-[#0F172A] text-white py-32 px-6 mt-20 relative">
-                        <div className="max-w-7xl mx-auto grid md:grid-cols-4 gap-20">
+                    <footer className="bg-[#0F172A] text-white py-32 px-6 mt-20 relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-blue-500/20 to-transparent"></div>
+                        <div className="max-w-7xl mx-auto grid md:grid-cols-4 gap-20 relative z-10">
                             <div className="md:col-span-2 space-y-10">
-                                <div className="flex items-center gap-2">
-                                    <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center"><Icon name="layers" size={16}/></div>
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-[0_0_15px_rgba(37,99,235,0.4)]"><Icon name="layers" size={16}/></div>
                                     <span className="font-serif italic text-2xl">LuxeDigital</span>
                                 </div>
-                                <p className="text-blue-200/30 text-base font-light max-w-md leading-relaxed">Deterministic digital asset issuance on the Polygon Network. Engineered for institutional compliance.</p>
-                                <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-blue-500">Developed by Amit N</p>
+                                <p className="text-blue-200/30 text-base font-light max-w-md leading-relaxed">Deterministic digital asset issuance on the Polygon Network. Engineered for institutional compliance and high-frequency delivery.</p>
+                                <div className="space-y-1 pt-4">
+                                    <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-blue-500/80">Developed by Amit N</p>
+                                    <p className="text-[9px] font-mono text-blue-900 uppercase">Version 4.2.0-STABLE</p>
+                                </div>
                             </div>
                             <div className="space-y-8">
-                                <h4 className="text-[11px] font-bold uppercase tracking-[0.4em] text-blue-400">Ledger</h4>
-                                <div className="flex items-center gap-3 text-green-400"><div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div> <span className="text-[10px] uppercase font-bold tracking-widest">Mainnet Live</span></div>
+                                <h4 className="text-[11px] font-bold uppercase tracking-[0.4em] text-blue-400">Governance</h4>
+                                <ul className="space-y-4 text-[11px] font-bold uppercase tracking-widest text-blue-100/30">
+                                    <li className="hover:text-blue-400 cursor-pointer transition-colors">Digital Issuance Terms</li>
+                                    <li className="hover:text-blue-400 cursor-pointer transition-colors">Sovereignty Audit</li>
+                                    <li className="hover:text-blue-400 cursor-pointer transition-colors">Whitepaper v4</li>
+                                </ul>
+                            </div>
+                            <div className="space-y-8">
+                                <h4 className="text-[11px] font-bold uppercase tracking-[0.4em] text-blue-400">Infrastructure</h4>
+                                <div className="flex items-center gap-3 text-green-400 bg-green-400/5 px-4 py-2 rounded-lg border border-green-400/10 w-fit">
+                                    <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse shadow-[0_0_10px_rgba(34,197,94,0.6)]"></div> 
+                                    <span className="text-[10px] uppercase font-bold tracking-widest">Mainnet Live</span>
+                                </div>
+                                <p className="text-[9px] font-mono text-blue-900 uppercase leading-loose">
+                                    Polygon Latency: 2.1s<br/>
+                                    Conf Rate: 100%<br/>
+                                    Security Layer: v2
+                                </p>
                             </div>
                         </div>
-                        <div className="max-w-7xl mx-auto pt-24 border-t border-white/5 mt-10 flex justify-between text-[11px] font-bold uppercase tracking-[0.5em] text-blue-100/10">
+                        <div className="max-w-7xl mx-auto pt-24 border-t border-white/5 mt-10 flex flex-col md:flex-row justify-between items-center gap-6 text-[11px] font-bold uppercase tracking-[0.6em] text-blue-100/10">
                             <span>&copy; 2026 LuxeDigital Protocol</span>
-                            <span>Frankfurt // Paris // London</span>
+                            <div className="flex gap-8">
+                                <span>Paris</span>
+                                <span>London</span>
+                                <span>Frankfurt</span>
+                            </div>
                         </div>
+                        <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-blue-600/5 rounded-full blur-[120px]"></div>
                     </footer>
                 </div>
             );
