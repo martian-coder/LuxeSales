@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3.12
 """
 ClipNest — Smart Multi-Clipboard Manager
 Tag it. Find it. Paste it.
@@ -45,23 +45,16 @@ CATEGORIES = [
 # ─────────────────────────────────────────────────────────────
 # GTK CSS (Catppuccin Mocha palette)
 # ─────────────────────────────────────────────────────────────
-APP_CSS = b"""
-/* ── Base ─────────────────────────────────────────── */
-window.clipnest-win            { background-color: #1e1e2e; }
+APP_CSS = """
+/* Base */
+window.clipnest-win { background-color: #1e1e2e; }
 
-/* ── Top-bar ──────────────────────────────────────── */
-.topbar {
-    background-color: #181825;
-    border-bottom: 1px solid #313244;
-}
-.app-title {
-    color: #cba6f7;
-    font-size: 19px;
-    font-weight: bold;
-}
-.app-sub { color: #585b70; font-size: 11px; }
+/* Top-bar */
+.topbar { background-color: #181825; border-bottom: 1px solid #313244; }
+.app-title { color: #cba6f7; font-size: 19px; font-weight: bold; }
+.app-sub   { color: #585b70; font-size: 11px; }
 
-/* ── Search ───────────────────────────────────────── */
+/* Search */
 .search-entry {
     background-color: #313244;
     color: #cdd6f4;
@@ -72,7 +65,7 @@ window.clipnest-win            { background-color: #1e1e2e; }
 }
 .search-entry:focus { border-color: #cba6f7; }
 
-/* ── Category bar ─────────────────────────────────── */
+/* Category bar */
 .catbar { background-color: #181825; padding: 6px 16px; }
 .cat-btn {
     background-color: #313244;
@@ -82,21 +75,21 @@ window.clipnest-win            { background-color: #1e1e2e; }
     padding: 4px 14px;
     font-size: 12px;
 }
-.cat-btn:hover  { background-color: #45475a; color: #cdd6f4; }
-.cat-selected   {
+.cat-btn:hover { background-color: #45475a; color: #cdd6f4; }
+.cat-selected  {
     background-color: #cba6f7;
     color: #1e1e2e;
     border-color: #cba6f7;
     font-weight: bold;
 }
 
-/* ── Clip cards ───────────────────────────────────── */
-.clip-card         { background-color: #252537; border-bottom: 1px solid #2a2a3e; }
-.clip-card:hover   { background-color: #2e2e45; }
-.clip-content      { color: #cdd6f4; font-size: 13px; }
-.clip-time         { color: #585b70; font-size: 11px; }
+/* Clip cards */
+.clip-card       { background-color: #252537; border-bottom: 1px solid #2a2a3e; }
+.clip-card:hover { background-color: #2e2e45; }
+.clip-content    { color: #cdd6f4; font-size: 13px; }
+.clip-time       { color: #585b70; font-size: 11px; }
 
-/* ── Category badges ──────────────────────────────── */
+/* Category badges */
 .badge {
     border-radius: 10px;
     padding: 2px 9px;
@@ -111,7 +104,7 @@ window.clipnest-win            { background-color: #1e1e2e; }
 .badge-number  { background-color: #3a2510; color: #fab387; }
 .badge-starred { background-color: #3a3410; color: #f9e2af; }
 
-/* ── Icon buttons (star / delete) ─────────────────── */
+/* Icon buttons */
 .icon-btn {
     background-color: transparent;
     border: none;
@@ -120,17 +113,17 @@ window.clipnest-win            { background-color: #1e1e2e; }
     border-radius: 5px;
     min-width: 0;
 }
-.icon-btn:hover  { background-color: #45475a; color: #cdd6f4; }
-.star-on         { color: #f9e2af; }
+.icon-btn:hover { background-color: #45475a; color: #cdd6f4; }
+.star-on        { color: #f9e2af; }
 
-/* ── Status bar ───────────────────────────────────── */
+/* Status bar */
 .statusbar {
     background-color: #181825;
     border-top: 1px solid #313244;
     padding: 5px 16px;
 }
-.status-text  { color: #585b70; font-size: 11px; }
-.empty-label  { color: #45475a; font-size: 14px; }
+.status-text { color: #585b70; font-size: 11px; }
+.empty-label { color: #45475a; font-size: 14px; }
 """
 
 
@@ -304,7 +297,7 @@ class ClipNest:
 
     def _apply_css(self):
         p = Gtk.CssProvider()
-        p.load_from_data(APP_CSS)
+        p.load_from_data(APP_CSS.encode("utf-8"))
         Gtk.StyleContext.add_provider_for_screen(
             Gdk.Screen.get_default(), p,
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
