@@ -1,7 +1,7 @@
 #!/usr/bin/env python3.12
 """
-ClipNest — Smart Multi-Clipboard Manager
-Tag it. Find it. Paste it.
+Copy More — Smart Multi-Clipboard Manager
+Copy more. Switch less. Paste anything.
 
 Sits in your system tray and silently captures everything you copy.
 Right-click the tray icon to quick-paste recent items.
@@ -24,9 +24,9 @@ from pathlib import Path
 # ─────────────────────────────────────────────────────────────
 # Constants
 # ─────────────────────────────────────────────────────────────
-APP_NAME    = "ClipNest"
+APP_NAME    = "Copy More"
 APP_VERSION = "1.0.0"
-DATA_DIR    = Path.home() / ".clipnest"
+DATA_DIR    = Path.home() / ".copymore"
 DB_PATH     = DATA_DIR / "clips.db"
 MAX_HISTORY = 1000          # non-starred clips kept at most
 PREVIEW_LEN = 300           # characters shown in the card body
@@ -47,7 +47,7 @@ CATEGORIES = [
 # ─────────────────────────────────────────────────────────────
 APP_CSS = """
 /* Base */
-window.clipnest-win { background-color: #1e1e2e; }
+window.copymore-win { background-color: #1e1e2e; }
 
 /* Top-bar */
 .topbar { background-color: #181825; border-bottom: 1px solid #313244; }
@@ -279,7 +279,7 @@ def categorize(text: str) -> str:
 # ─────────────────────────────────────────────────────────────
 # Main Application
 # ─────────────────────────────────────────────────────────────
-class ClipNest:
+class CopyMore:
 
     def __init__(self):
         self.db          = Database()
@@ -345,7 +345,7 @@ class ClipNest:
 
         menu.append(Gtk.SeparatorMenuItem())
 
-        open_i = Gtk.MenuItem(label="Open ClipNest Manager")
+        open_i = Gtk.MenuItem(label="Open Copy More")
         open_i.connect("activate", lambda _: self._show_win())
         menu.append(open_i)
 
@@ -413,7 +413,7 @@ class ClipNest:
 
     def _build_win(self):
         w = Gtk.Window(title=APP_NAME)
-        w.get_style_context().add_class("clipnest-win")
+        w.get_style_context().add_class("copymore-win")
         w.set_default_size(900, 640)
         w.set_position(Gtk.WindowPosition.CENTER)
         w.connect("delete-event", lambda *_: w.hide() or True)
@@ -429,7 +429,7 @@ class ClipNest:
         topbar.set_margin_bottom(14)
 
         title_col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
-        tl = Gtk.Label(label="📋  ClipNest")
+        tl = Gtk.Label(label="📋  Copy More")
         tl.get_style_context().add_class("app-title")
         tl.set_halign(Gtk.Align.START)
 
@@ -672,17 +672,17 @@ def main():
     signal.signal(signal.SIGINT, signal.SIG_DFL)  # Ctrl-C exits cleanly
 
     # Prevent multiple instances
-    lock_file = DATA_DIR / "clipnest.lock"
+    lock_file = DATA_DIR / "copymore.lock"
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     try:
         import fcntl
         lock_fd = open(lock_file, "w")
         fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except (IOError, OSError):
-        print("ClipNest is already running.", file=sys.stderr)
+        print("Copy More is already running.", file=sys.stderr)
         sys.exit(0)
 
-    app = ClipNest()
+    app = CopyMore()
     app.run()
 
     lock_fd.close()
