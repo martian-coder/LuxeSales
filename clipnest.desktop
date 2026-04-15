@@ -1,0 +1,14 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=ClipNest
+GenericName=Clipboard Manager
+Comment=Tag it. Find it. Paste it. — Smart multi-clipboard manager with categories and search.
+Exec=python3 /usr/local/bin/clipnest
+Icon=edit-paste
+Terminal=false
+Categories=Utility;TextTools;
+Keywords=clipboard;copy;paste;history;manager;
+StartupNotify=false
+X-GNOME-Autostart-enabled=true
+X-GNOME-Autostart-Delay=3
