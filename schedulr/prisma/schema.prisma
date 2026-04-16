@@ -1,0 +1,328 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Auth Models (NextAuth v5) ─────────────────────────────────────────────
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ─── Core User ──────────────────────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  username      String?   @unique
+  bio           String?   @db.Text
+  timeZone      String    @default("UTC")
+  weekStart     String    @default("Sunday")
+  hideBranding  Boolean   @default(false)
+  theme         String?
+  plan          Plan      @default(FREE)
+
+  // Stripe billing
+  stripeCustomerId       String?   @unique
+  stripeSubscriptionId   String?   @unique
+  stripePriceId          String?
+  stripeCurrentPeriodEnd DateTime?
+
+  // Calendar integrations
+  googleCalendarConnected Boolean @default(false)
+  outlookConnected        Boolean @default(false)
+  zoomConnected           Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  accounts     Account[]
+  sessions     Session[]
+  eventTypes   EventType[]
+  bookings     Booking[]    @relation("BookingHost")
+  availability Availability[]
+  webhooks     Webhook[]
+  apiKeys      ApiKey[]
+  packages     Package[]
+}
+
+enum Plan {
+  FREE
+  PRO
+  TEAMS
+  ENTERPRISE
+}
+
+// ─── Event Types ──────────────────────────────────────────────────────────
+
+model EventType {
+  id          String  @id @default(cuid())
+  userId      String
+  title       String
+  slug        String
+  description String? @db.Text
+  length      Int // duration in minutes
+  hidden      Boolean @default(false)
+  requiresConfirmation Boolean @default(false)
+
+  // Booking window & buffers
+  minimumBookingNotice Int @default(120) // minutes before booking
+  beforeEventBuffer    Int @default(0)   // buffer before event
+  afterEventBuffer     Int @default(0)   // buffer after event
+  bookingWindowDays    Int @default(60)  // days into future bookable
+  slotInterval         Int?              // custom slot interval (minutes)
+
+  // Location
+  locationType  LocationType @default(ONLINE)
+  locationValue String?
+
+  // Payment
+  price           Int     @default(0) // cents
+  currency        String  @default("usd")
+  paymentRequired Boolean @default(false)
+  stripePriceId   String?
+
+  // Recurrence
+  recurringEvent Boolean @default(false)
+  recurringCount Int?
+  recurringUnit  String? // "day" | "week" | "month"
+
+  // Custom intake form fields (JSON array)
+  customInputs Json?
+
+  // Redirect after booking
+  successRedirectUrl String?
+
+  // Waitlist
+  waitlistEnabled Boolean @default(false)
+  waitlistMaxSize Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user           User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bookings       Booking[]
+  availabilities EventTypeAvailability[]
+
+  @@unique([userId, slug])
+}
+
+enum LocationType {
+  ONLINE
+  ZOOM
+  GOOGLE_MEET
+  IN_PERSON
+  PHONE
+  CUSTOM
+}
+
+// ─── Availability ─────────────────────────────────────────────────────────
+
+model Availability {
+  id        String  @id @default(cuid())
+  userId    String
+  name      String  @default("Working Hours")
+  isDefault Boolean @default(false)
+
+  // JSON: [{ dayOfWeek: 0-6, startTime: "09:00", endTime: "17:00" }]
+  schedule      Json
+  // JSON: [{ date: "YYYY-MM-DD", startTime: "09:00", endTime: "17:00", isUnavailable: bool }]
+  dateOverrides Json @default("[]")
+
+  user       User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventTypes EventTypeAvailability[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model EventTypeAvailability {
+  eventTypeId    String
+  availabilityId String
+
+  eventType    EventType    @relation(fields: [eventTypeId], references: [id], onDelete: Cascade)
+  availability Availability @relation(fields: [availabilityId], references: [id], onDelete: Cascade)
+
+  @@id([eventTypeId, availabilityId])
+}
+
+// ─── Bookings ─────────────────────────────────────────────────────────────
+
+model Booking {
+  id          String        @id @default(cuid())
+  uid         String        @unique @default(cuid())
+  title       String
+  description String?       @db.Text
+  startTime   DateTime
+  endTime     DateTime
+  location    String?
+  status      BookingStatus @default(ACCEPTED)
+
+  // Guest
+  attendeeEmail    String
+  attendeeName     String
+  attendeePhone    String?
+  attendeeTimeZone String  @default("UTC")
+
+  // Custom form answers
+  customResponses Json?
+
+  // Relations
+  userId      String
+  eventTypeId String
+
+  // Payment
+  paid                  Boolean @default(false)
+  paymentId             String?
+  paymentAmount         Int?
+  paymentCurrency       String?
+  stripePaymentIntentId String?
+
+  // Cancellation
+  cancellationReason String?  @db.Text
+  cancelledAt        DateTime?
+  cancelledBy        String?
+
+  // Reschedule
+  rescheduled   Boolean  @default(false)
+  fromBookingId String?
+  rescheduledAt DateTime?
+
+  // Recurring
+  recurringEventId String?
+  recurringCount   Int?
+
+  // No-show
+  noShow Boolean @default(false)
+
+  // Waitlist
+  waitlisted       Boolean @default(false)
+  waitlistPosition Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User      @relation("BookingHost", fields: [userId], references: [id])
+  eventType EventType @relation(fields: [eventTypeId], references: [id])
+}
+
+enum BookingStatus {
+  CANCELLED
+  ACCEPTED
+  REJECTED
+  PENDING
+  AWAITING_HOST
+}
+
+// ─── Waitlist ──────────────────────────────────────────────────────────────
+
+model WaitlistEntry {
+  id          String   @id @default(cuid())
+  eventTypeId String
+  email       String
+  name        String
+  notified    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@unique([eventTypeId, email])
+}
+
+// ─── Packages / Bundles ───────────────────────────────────────────────────
+
+model Package {
+  id          String   @id @default(cuid())
+  userId      String
+  title       String
+  description String?  @db.Text
+  sessions    Int
+  price       Int // cents
+  currency    String   @default("usd")
+  validDays   Int?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purchases PackagePurchase[]
+}
+
+model PackagePurchase {
+  id              String    @id @default(cuid())
+  packageId       String
+  attendeeEmail   String
+  attendeeName    String
+  sessionsUsed    Int       @default(0)
+  sessionsTotal   Int
+  stripePaymentId String?
+  expiresAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  package Package @relation(fields: [packageId], references: [id])
+}
+
+// ─── Webhooks ─────────────────────────────────────────────────────────────
+
+model Webhook {
+  id            String   @id @default(cuid())
+  userId        String
+  subscriberUrl String
+  secret        String?
+  active        Boolean  @default(true)
+  eventTriggers Json
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─── API Keys ──────────────────────────────────────────────────────────────
+
+model ApiKey {
+  id         String    @id @default(cuid())
+  userId     String
+  note       String?
+  hashedKey  String    @unique
+  expiresAt  DateTime?
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
