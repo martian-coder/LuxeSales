@@ -1,0 +1,30 @@
+{
+  "$schema": "https://aka.ms/winget-packages.schema.2.0.json",
+  "CreationDate": "2024-01-15T10:30:00.000Z",
+  "Sources": [
+    {
+      "Packages": [
+        { "PackageIdentifier": "Microsoft.VisualStudioCode",    "Version": "1.85.1" },
+        { "PackageIdentifier": "Microsoft.WindowsTerminal",     "Version": "1.18.3181.0" },
+        { "PackageIdentifier": "Git.Git",                       "Version": "2.43.0" },
+        { "PackageIdentifier": "Rustlang.Rustup",               "Version": "1.26.0" },
+        { "PackageIdentifier": "BurntSushi.ripgrep.MSVC",       "Version": "14.1.0" },
+        { "PackageIdentifier": "sharkdp.bat",                   "Version": "0.24.0" },
+        { "PackageIdentifier": "junegunn.fzf",                  "Version": "0.46.1" },
+        { "PackageIdentifier": "Mozilla.Firefox",               "Version": "121.0" },
+        { "PackageIdentifier": "VideoLAN.VLC",                  "Version": "3.0.20" },
+        { "PackageIdentifier": "Spotify.Spotify",               "Version": "1.2.26.1187.g36b715a3" },
+        { "PackageIdentifier": "Notepad++.Notepad++",           "Version": "8.6" },
+        { "PackageIdentifier": "Microsoft.PowerShell",          "Version": "7.4.1.0" },
+        { "PackageIdentifier": "Docker.DockerDesktop",          "Version": "4.26.1" }
+      ],
+      "SourceDetails": {
+        "Argument": "https://cdn.winget.microsoft.com/cache",
+        "Identifier": "Microsoft.Winget.Source_8wekyb3d8bbwe",
+        "Name": "winget",
+        "Type": "Microsoft.PreIndexed.Package"
+      }
+    }
+  ],
+  "WinGetVersion": "1.6.3482"
+}
