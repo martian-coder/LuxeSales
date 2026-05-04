@@ -1,0 +1,29 @@
+{
+  "$schema": "https://aka.ms/winget-packages.schema.2.0.json",
+  "CreationDate": "2024-01-14T08:00:00.000Z",
+  "Sources": [
+    {
+      "Packages": [
+        { "PackageIdentifier": "Microsoft.VisualStudioCode",    "Version": "1.84.2" },
+        { "PackageIdentifier": "Microsoft.WindowsTerminal",     "Version": "1.18.3181.0" },
+        { "PackageIdentifier": "Git.Git",                       "Version": "2.43.0" },
+        { "PackageIdentifier": "Rustlang.Rustup",               "Version": "1.26.0" },
+        { "PackageIdentifier": "BurntSushi.ripgrep.MSVC",       "Version": "14.1.0" },
+        { "PackageIdentifier": "sharkdp.bat",                   "Version": "0.23.0" },
+        { "PackageIdentifier": "Mozilla.Firefox",               "Version": "121.0" },
+        { "PackageIdentifier": "VideoLAN.VLC",                  "Version": "3.0.20" },
+        { "PackageIdentifier": "Microsoft.PowerShell",          "Version": "7.4.1.0" },
+        { "PackageIdentifier": "Docker.DockerDesktop",          "Version": "4.26.1" },
+        { "PackageIdentifier": "Obsidian.Obsidian",             "Version": "1.5.3" },
+        { "PackageIdentifier": "Microsoft.PowerToys",           "Version": "0.76.2" }
+      ],
+      "SourceDetails": {
+        "Argument": "https://cdn.winget.microsoft.com/cache",
+        "Identifier": "Microsoft.Winget.Source_8wekyb3d8bbwe",
+        "Name": "winget",
+        "Type": "Microsoft.PreIndexed.Package"
+      }
+    }
+  ],
+  "WinGetVersion": "1.6.3482"
+}
