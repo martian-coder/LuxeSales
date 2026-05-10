@@ -141,9 +141,60 @@ def fuzzy_match(query: str, text: str) -> tuple:
     return score, matched
 
 
+SKIP_DIRS = {
+    # Windows
+    "Windows", "System32", "SysWOW64", "$Recycle.Bin", "ProgramData",
+    "AppData", "Temp", "temp", "node_modules", ".git", "__pycache__",
+    # Unix
+    "proc", "sys", "dev", "run", "snap", "boot",
+}
+
+
+def _scan_dirs(roots: list, max_depth: int = 4) -> list:
+    """Walk roots up to max_depth, return list of dir paths."""
+    found = []
+    for root in roots:
+        root = Path(root)
+        if not root.is_dir():
+            continue
+        try:
+            for entry in root.rglob("*"):
+                try:
+                    if not entry.is_dir():
+                        continue
+                    # Skip hidden and noise dirs
+                    if any(part.startswith(".") or part in SKIP_DIRS
+                           for part in entry.parts):
+                        continue
+                    # Depth guard relative to root
+                    depth = len(entry.relative_to(root).parts)
+                    if depth <= max_depth:
+                        found.append(str(entry))
+                except (PermissionError, OSError):
+                    continue
+        except (PermissionError, OSError):
+            continue
+    return found
+
+
+def _discover_roots() -> list:
+    """Return a sensible set of roots to scan."""
+    roots = [Path.cwd()]
+    # Walk up to drive/fs root
+    p = Path.cwd()
+    while p != p.parent:
+        roots.append(p.parent)
+        p = p.parent
+    # Home dir
+    roots.append(Path.home())
+    return list(dict.fromkeys(roots))  # dedupe, preserve order
+
+
 def rank(query: str, db: dict) -> list:
     now = time.time()
-    results = []
+    seen: dict[str, int] = {}
+
+    # 1. Frecency-boosted entries from DB
     for path, meta in db.items():
         if not Path(path).is_dir():
             continue
@@ -157,7 +208,22 @@ def rank(query: str, db: dict) -> list:
         visits = meta.get("visits", 1)
         age_days = (now - meta.get("last", now)) / 86400
         recency = max(0.0, 20.0 - age_days * 2)
-        results.append((path, int(name_score + visits * 3 + recency)))
+        seen[path] = int(name_score + visits * 3 + recency)
+
+    # 2. Auto-discovered dirs from filesystem
+    for path in _scan_dirs(_discover_roots()):
+        if path in seen:
+            continue
+        name = Path(path).name
+        name_score, _ = fuzzy_match(query, name)
+        if name_score == 0:
+            path_score, _ = fuzzy_match(query, path)
+            if path_score == 0:
+                continue
+            name_score = path_score // 2
+        seen[path] = int(name_score)
+
+    results = list(seen.items())
     results.sort(key=lambda x: -x[1])
     return results
 
