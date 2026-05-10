@@ -365,16 +365,37 @@ add-zsh-hook chpwd _jd_track
 # CLI
 # ---------------------------------------------------------------------------
 
+_BAT_CONTENT = r"""@echo off
+for /f "delims=" %%i in ('python "%~dp0jumpdir.py" --pick %*') do set R=%%i
+if defined R (
+    python "%~dp0jumpdir.py" --add "%R%" 2>nul
+    cd /d "%R%"
+)
+"""
+
+
+def make_bat() -> None:
+    bat = Path(__file__).parent / "j.bat"
+    bat.write_text(_BAT_CONTENT)
+    print(f"Created: {bat}")
+    print(f"Add this folder to PATH to use 'j' from anywhere:")
+    print(f"  {bat.parent}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="JumpDir Advanced")
     parser.add_argument("--init",     action="store_true")
     parser.add_argument("--init-zsh", action="store_true")
+    parser.add_argument("--make-bat", action="store_true", help="Create j.bat in this folder (Windows)")
     parser.add_argument("--add",  metavar="PATH")
     parser.add_argument("--pick", nargs="?", const="", metavar="QUERY")
     parser.add_argument("query",  nargs="?", default="")
     args = parser.parse_args()
 
     script = Path(__file__).resolve()
+
+    if args.make_bat:
+        make_bat(); return
 
     if args.init:
         print(_BASH_INIT.format(script=script)); return
