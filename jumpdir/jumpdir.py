@@ -39,14 +39,14 @@ if sys.platform == "win32":
     import ctypes
 
     def _enable_ansi():
-        # Open CONOUT$ so we get the real handle even when stdout is redirected
-        hnd = ctypes.windll.kernel32.CreateFileW(
-            "CONOUT$", 0x40000000, 0x03, None, 0x03, 0, None
-        )
-        mode = ctypes.c_ulong()
-        ctypes.windll.kernel32.GetConsoleMode(hnd, ctypes.byref(mode))
-        ctypes.windll.kernel32.SetConsoleMode(hnd, mode.value | 0x0004)
-        ctypes.windll.kernel32.CloseHandle(hnd)
+        # Enable ANSI on the exact handle _tty is using
+        try:
+            win_handle = msvcrt.get_osfhandle(_tty.fileno())
+            mode = ctypes.c_ulong()
+            ctypes.windll.kernel32.GetConsoleMode(win_handle, ctypes.byref(mode))
+            ctypes.windll.kernel32.SetConsoleMode(win_handle, mode.value | 0x0004)
+        except Exception:
+            pass
 
     def _getch():
         ch = msvcrt.getwch()
@@ -366,10 +366,15 @@ add-zsh-hook chpwd _jd_track
 # ---------------------------------------------------------------------------
 
 _BAT_CONTENT = r"""@echo off
-for /f "delims=" %%i in ('python "%~dp0jumpdir.py" --pick %*') do set R=%%i
-if defined R (
-    python "%~dp0jumpdir.py" --add "%R%" 2>nul
-    cd /d "%R%"
+set JD_TMP=%TEMP%\jd_result.txt
+python "%~dp0jumpdir.py" --pick-to "%JD_TMP%" %*
+if exist "%JD_TMP%" (
+    set /p JD_R=<"%JD_TMP%"
+    del "%JD_TMP%" 2>nul
+    if defined JD_R (
+        python "%~dp0jumpdir.py" --add "%JD_R%" 2>nul
+        cd /d "%JD_R%"
+    )
 )
 """
 
@@ -387,9 +392,10 @@ def main() -> None:
     parser.add_argument("--init",     action="store_true")
     parser.add_argument("--init-zsh", action="store_true")
     parser.add_argument("--make-bat", action="store_true", help="Create j.bat in this folder (Windows)")
-    parser.add_argument("--add",  metavar="PATH")
-    parser.add_argument("--pick", nargs="?", const="", metavar="QUERY")
-    parser.add_argument("query",  nargs="?", default="")
+    parser.add_argument("--add",      metavar="PATH")
+    parser.add_argument("--pick",     nargs="?", const="", metavar="QUERY")
+    parser.add_argument("--pick-to",  metavar="FILE", help="Write chosen path to FILE instead of stdout")
+    parser.add_argument("query",      nargs="?", default="")
     args = parser.parse_args()
 
     script = Path(__file__).resolve()
@@ -405,11 +411,15 @@ def main() -> None:
         record_visit(args.add); return
 
     db   = load_db()
-    seed = args.pick if args.pick is not None else args.query
+    seed = args.pick if args.pick is not None else (args.pick_to and "") or args.query
 
     chosen = interactive_pick(seed, db)
     if chosen:
-        print(chosen)          # stdout — captured by j.bat / shell function
+        dest = getattr(args, "pick_to", None)
+        if dest:
+            Path(dest).write_text(chosen)   # j.bat reads this file, then cds
+        else:
+            print(chosen)
 
 
 if __name__ == "__main__":
