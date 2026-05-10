@@ -13,10 +13,19 @@ Then use:  j           # open interactive picker
 import sys
 import os
 import json
-import curses
 import time
 import argparse
 from pathlib import Path
+
+try:
+    import curses
+except ImportError:
+    try:
+        import windows_curses as curses  # pip install windows-curses
+        sys.modules["curses"] = curses
+    except ImportError:
+        print("ERROR: curses not available. On Windows run:  pip install windows-curses", file=sys.stderr)
+        sys.exit(1)
 
 DB_PATH = Path.home() / ".jumpdir_db.json"
 
