@@ -1,0 +1,86 @@
+ProcDump v11.0 - Sysinternals process dump utility
+Copyright (C) 2009-2023 Mark Russinovich and Andrew Richards
+Sysinternals - www.sysinternals.com
+
+Process:               WorkerService.exe (PID: 7842)
+CPU threshold:         90%
+Performance counter:   \Process(WorkerService)\% Processor Time
+Threshold seconds:     10
+Number of dumps:       3
+Hung window check:     Disabled
+Reflection dump:       Disabled
+Dump folder:           C:\CrashDumps
+Dump filename/mask:    WorkerService_YYMMDD_HHMMSS
+
+[15:42:01] CPU usage: 92% - Trigger condition met. Waiting 10 seconds...
+[15:42:11] CPU usage: 97% - Condition persists. Writing dump...
+[15:42:11] Dump 1 initiated: C:\CrashDumps\WorkerService_231028_154211.dmp
+[15:42:15] Dump 1 complete: 412 MB written in 3.8 seconds
+[15:42:15] CPU usage: 95% - Condition persists. Waiting 10 seconds...
+[15:42:25] CPU usage: 99% - Condition persists. Writing dump...
+[15:42:25] Dump 2 initiated: C:\CrashDumps\WorkerService_231028_154225.dmp
+[15:42:31] Dump 2 complete: 412 MB written in 6.1 seconds
+
+[15:42:31] WARNING: Dump write time exceeded 5 seconds — system may be under severe memory pressure.
+
+[15:42:31] CPU usage: 100% - Condition persists. Waiting 10 seconds...
+[15:42:41] CPU usage: 100% - Condition persists. Writing dump...
+[15:42:41] Dump 3 initiated: C:\CrashDumps\WorkerService_231028_154241.dmp
+[15:43:02] ERROR: Dump 3 FAILED after 21.4 seconds — TIMEOUT
+
+Dump 3 write timed out.  The system appears unresponsive.
+This can indicate:
+  - Severe paging / virtual memory exhaustion
+  - Storage subsystem saturation (disk I/O queue > 100)
+  - Kernel-mode deadlock preventing I/O completion
+
+Process state at timeout:
+  Handle count:         18,492  (normal: ~300)
+  Thread count:         847     (normal: ~20)
+  Private bytes:        7,891 MB
+  Working set:          7,203 MB
+  Page fault count:     24,891,203 (delta +9,882,011 since last dump)
+  I/O reads:            1,203,849,204 bytes
+  I/O writes:           892,038,491 bytes
+
+Top thread stacks at hang time (sampled via ETW):
+Thread 0xF8C (pool worker):
+    ntdll!NtWaitForSingleObject+0x14
+    KERNELBASE!WaitForSingleObjectEx+0x8f
+    clr!ThreadpoolMgr::WorkerThreadStart+0x18b
+    clr!Thread::intermediateThreadProc+0x86
+    kernel32!BaseThreadInitThunk+0x14
+    ntdll!RtlUserThreadStart+0x21
+
+Thread 0x1A04 (pool worker):
+    ntdll!NtWaitForSingleObject+0x14
+    KERNELBASE!WaitForSingleObjectEx+0x8f
+    clr!CLREvent::WaitEx+0xcd
+    clr!ThreadpoolMgr::WorkerThreadStart+0x18b
+    clr!Thread::intermediateThreadProc+0x86
+
+Thread 0x29C (GC thread):
+    ntdll!NtWaitForSingleObject+0x14
+    ntdll!RtlpWaitOnCriticalSection+0x38
+    ntdll!RtlEnterCriticalSection+0x95
+    ntdll!RtlpAllocateHeap+0x4ef
+    ntdll!RtlAllocateHeap+0x22a
+    clr!EEHeapAllocInProcessHeap+0x35
+
+Performance counters at failure:
+  \Memory\Available MBytes:               104
+  \Memory\Pages/sec:                      12,847
+  \Memory\Page Faults/sec:               892,441
+  \PhysicalDisk(0 C:)\Avg. Disk Queue Length: 127.3
+  \PhysicalDisk(0 C:)\% Disk Time:       100%
+  \Process(WorkerService)\Handle Count:  18,492
+  \Process(WorkerService)\Thread Count:  847
+
+Event Log (System) — last 5 minutes:
+  [WARN ] srv: The server was unable to allocate from the system nonpaged pool because the pool was empty.
+  [ERROR] Application: WorkerService.exe — AppDomain unloaded due to OutOfMemoryException
+  [WARN ] The paging file is too small for this operation to complete.
+  [ERROR] Service Control Manager: WorkerService — The service did not respond to the start or control request in a timely fashion.
+  [ERROR] Application Hang: WorkerService.exe (PID 7842) — hung for 120 seconds.
+
+[15:43:02] ProcDump exiting — maximum dump count reached (3 dumps requested, 2 completed, 1 failed).

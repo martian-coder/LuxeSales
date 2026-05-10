@@ -1,0 +1,76 @@
+Microsoft (R) Windows Debugger Version 10.0.25200.1 AMD64
+Copyright (c) Microsoft Corporation. All rights reserved.
+
+Loading Dump File [C:\Users\jdoe\AppData\Local\CrashDumps\MyWebApp.exe.4892.dmp]
+User Mini Dump File with Full Memory: Only application data is available
+
+Symbol search path is: srv*C:\Symbols*https://msdl.microsoft.com/download/symbols
+Executable search path is:
+Windows 10 Version 19041 MP (12 procs) Free x64
+Product: WinNt, suite: TerminalServer SingleUserTS
+
+EXCEPTION_RECORD:  (.exr -1)
+ExceptionAddress: 00007fff8c3a1234 (clr!WKS::GCHeap::Alloc+0x0000000000000044)
+   ExceptionCode: c0000005 (Access violation)
+  ExceptionFlags: 00000000
+NumberParameters: 2
+   Parameter[0]: 0000000000000001
+   Parameter[1]: 0000000000000030
+Attempt to write to address 0000000000000030
+
+PROCESS_NAME:  MyWebApp.exe
+
+FAULTING_IP:
+clr!WKS::GCHeap::Alloc+44
+00007fff`8c3a1234 48891e          mov     qword ptr [rsi],rbx ds:00000000`00000030=????????????????
+
+EXCEPTION_RECORD:  c0000005
+
+DEFAULT_BUCKET_ID:  WRONG_SYMBOLS
+
+PROCESS_NAME:  MyWebApp.exe (PID: 4892)
+
+MANAGED_ANALYSIS_PROVIDER: Microsoft.Diagnostics.Runtime (ClrMD)
+
+Managed thread ID:  17
+
+Exception thrown:  System.NullReferenceException
+   at MyWebApp.DataLayer.UserRepository.GetUserById(Int32 userId) in C:\src\MyWebApp\DataLayer\UserRepository.cs:line 87
+   at MyWebApp.Services.AuthService.ValidateSession(String token) in C:\src\MyWebApp\Services\AuthService.cs:line 42
+   at MyWebApp.Controllers.AccountController.Login(LoginRequest req) in C:\src\MyWebApp\Controllers\AccountController.cs:line 31
+   at lambda_method12(Closure, Object, Object[])
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ActionMethodExecutor+SyncObjectResultExecutor.Execute(...)
+
+STACK_TEXT:
+00000081`7fcfe770 00007fff`8c55ab12 : 00000000`00000000 00000000`00000030 00007fff`8c3a1190 00000000`00000001 : clr!WKS::GCHeap::Alloc+0x44
+00000081`7fcfe7a0 00007fff`8c4412ee : 00000081`7fcfe880 00007f80`12345600 00000000`00000001 00000000`00000000 : clr!JIT_New+0xb2
+00000081`7fcfe7d0 00007f80`12399abc : 00000081`7fcfe900 00000000`00000000 00000000`00000000 00000000`00000000 : clr!JIT_NewArr1+0x7e
+00000081`7fcfe810 00007f80`12345678 : 00000000`00000000 00000000`00000000 00000000`00000000 00000000`00000000 : MyWebApp!MyWebApp.DataLayer.UserRepository.GetUserById+0x5c
+00000081`7fcfe850 00007f80`12345590 : 00000000`00000000 00000000`00000000 00000000`00000000 00000000`00000000 : MyWebApp!MyWebApp.Services.AuthService.ValidateSession+0x28
+
+GC_HEAP_ALLOC_FAILURE: Heap segment exhaustion
+
+!clrstack output:
+OS Thread Id: 0x3e8 (17)
+        Child SP               IP Call Site
+00000081`7fcfe770 00007fff8c3a1234 [HelperMethodFrame: 00000081`7fcfe770]
+00000081`7fcfe810 00007f8012345678 MyWebApp.DataLayer.UserRepository.GetUserById(Int32)
+00000081`7fcfe850 00007f8012345590 MyWebApp.Services.AuthService.ValidateSession(System.String)
+00000081`7fcfe8a0 00007f801234548a MyWebApp.Controllers.AccountController.Login(MyWebApp.Models.LoginRequest)
+00000081`7fcfe910 00007f8012344f20 lambda_method12(System.Runtime.CompilerServices.Closure, System.Object, System.Object[])
+00000081`7fcfe950 00007fff6b2a3180 [InlinedCallFrame: 00000081`7fcfe950]
+
+!eeheap -gc output:
+Number of GC Heaps: 1
+generation 0 starts at 0x00000195`10012aa8
+generation 1 starts at 0x00000195`10001018
+generation 2 starts at 0x00000195`10000028
+ephemeral segment allocation context: (0x00000195`101fd4a0, 0x00000195`10200000)
+         segment             begin         allocated              size
+00000195`10000000  00000195`10000028  00000195`101fd4a0  0x1fd478(2086024)
+Large object heap starts at 0x00000196`10000028
+         segment             begin         allocated              size
+00000196`10000000  00000196`10000028  00000196`13fff5b0  0x3fff588(67106184)
+Total Size:              Size: 0x41f4000 (69193728) bytes.
+------------------------------
+GC Heap Size:            Size: 0x41f4000 (69193728) bytes.

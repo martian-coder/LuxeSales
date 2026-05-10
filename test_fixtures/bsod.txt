@@ -1,0 +1,165 @@
+Microsoft (R) Windows Debugger Version 10.0.25200.1 AMD64
+Copyright (c) Microsoft Corporation. All rights reserved.
+
+Loading Dump File [C:\Windows\Minidump\102823-18234-01.dmp]
+Mini Kernel Dump File: Only registers and stack trace are available
+
+Symbol search path is: srv*C:\Symbols*https://msdl.microsoft.com/download/symbols
+Executable search path is:
+Windows 10 Kernel Version 19041 MP (12 procs) Free x64
+Product: WinNt, suite: TerminalServer SingleUserTS
+Machine Name:
+Kernel base = 0xfffff800`53a00000 PsLoadedModuleList = 0xfffff800`5462a290
+Debug session time: Tue Oct 28 03:14:55.832 2023 (UTC - 8:00)
+System Uptime: 0 days 4:17:32.441
+Loading Kernel Symbols
+...............................................................
+Loading User Symbols
+Loading unloaded module list
+....
+*******************************************************************************
+*                                                                             *
+*                        Bugcheck Analysis                                    *
+*                                                                             *
+*******************************************************************************
+
+Use !analyze -v to get detailed debugging information.
+
+BugCheck D1, {ffffe30ad4c80010, 2, 0, fffff8065b247ac0}
+
+*** ERROR: Module load completed but symbols could not be loaded for nvlddmkm.sys
+
+Probably caused by : nvlddmkm.sys ( nvlddmkm+1847ac0 )
+
+Followup: MachineOwner
+---------
+
+5: kd> !analyze -v
+*******************************************************************************
+*                                                                             *
+*                        Bugcheck Analysis                                    *
+*                                                                             *
+*******************************************************************************
+
+DRIVER_IRQL_NOT_LESS_OR_EQUAL (d1)
+An attempt was made to access a pageable (or completely invalid) address at an
+interrupt request level (IRQL) that is too high.  This is usually
+caused by drivers using improper addresses.
+If kernel debugger is available get stack backtrace.
+
+Arguments:
+Arg1: ffffe30ad4c80010, memory referenced
+Arg2: 0000000000000002, IRQL
+Arg3: 0000000000000000, value 0 = read operation, 1 = write operation
+Arg4: fffff8065b247ac0, address which referenced memory
+
+Debugging Details:
+------------------
+
+KEY_VALUES_STRING: 1
+
+TIMELINE_ANALYSIS:
+  Timeline: BugcheckCode: D1
+  Timeline: BugcheckP1: ffffe30ad4c80010
+  Timeline: BugcheckP2: 2
+  Timeline: BugcheckP3: 0
+
+DUMP_CLASS: 1
+
+DUMP_QUALIFIER: 401
+
+BUILD_VERSION_STRING:  19041.3570.amd64fre.vb_release.231018-1419
+
+SYSTEM_MANUFACTURER:  MSI
+
+SYSTEM_PRODUCT_NAME:  MS-7D25
+
+BIOS_VENDOR:  American Megatrends International, LLC.
+
+BIOS_VERSION:  1.F0
+
+BIOS_DATE:  10/12/2023
+
+BASEBOARD_MANUFACTURER:  Micro-Star International Co., Ltd.
+
+BASEBOARD_PRODUCT:  MAG Z790 TOMAHAWK WIFI (MS-7D25)
+
+BASEBOARD_VERSION:  1.0
+
+BUGCHECK_P1: ffffe30ad4c80010
+
+BUGCHECK_P2: 2
+
+BUGCHECK_P3: 0
+
+BUGCHECK_P4: fffff8065b247ac0
+
+READ_ADDRESS: ffffe30ad4c80010
+
+CURRENT_IRQL: 2
+
+FAULTING_IP:
+nvlddmkm+1847ac0
+fffff806`5b247ac0 488b4010        mov     rax,qword ptr [rax+10h]
+
+CUSTOMER_CRASH_COUNT:  3
+
+DEFAULT_BUCKET_ID:  WIN8_DRIVER_FAULT
+
+PROCESS_NAME:  System
+
+TRAP_FRAME:  ffffbe80f4fb7820 -- (.trap 0xffffbe80f4fb7820)
+NOTE: The trap frame does not contain all registers.
+Some register values may be zeroed or incorrect.
+rax=ffffe30ad4c80000 rbx=0000000000000000 rcx=ffffe30ad4c80000
+rdx=0000000000000000 rsi=0000000000000000 rdi=0000000000000000
+rip=fffff8065b247ac0 rsp=ffffbe80f4fb79b8 rbp=ffffe30b0b36e450
+ r8=0000000000000000  r9=0000000000000000 r10=0000000000000000
+r11=0000000000000000 r12=0000000000000000 r13=0000000000000000
+r14=0000000000000000 r15=0000000000000000
+iopl=0         nv up ei pl nz ac pe nc
+nvlddmkm+1847ac0:
+fffff806`5b247ac0 488b4010        mov     rax,qword ptr [rax+10h] ds:ffffe30a`d4c80010=????????????????
+Resetting default scope
+
+STACK_TEXT:
+ffffbe80`f4fb7688 fffff800`53c8b169 : 00000000`0000000d 00000000`00000001 ffffe30a`d4c80010 00000000`00000002 : nt!KeBugCheckEx
+ffffbe80`f4fb7690 fffff800`53c88fa5 : 00000000`00000000 00000000`00000002 00000000`00000000 fffff806`5b247ac0 : nt!KiBugCheckDispatch+0x69
+ffffbe80`f4fb77c0 fffff800`53c87410 : 00000000`00000000 00000000`00000000 00000000`00000000 00000000`00000000 : nt!KiPageFault+0x465
+ffffbe80`f4fb7958 fffff806`5b247ac0 : ffffe30b`0b36e450 ffffe30b`0b36e450 ffffbe80`f4fb7a98 ffffe30a`d4c80000 : nt!KiPageFault+0x0
+ffffbe80`f4fb79b8 fffff806`5b11e2d4 : ffffe30b`0b36e450 00000000`00000001 ffffe30a`d4c80000 ffffe30a`d4c80000 : nvlddmkm+0x1847ac0
+ffffbe80`f4fb7a60 fffff806`5b11b8c7 : ffffe30b`0b36e450 00000000`00000000 ffffe30b`0b369570 ffffe30a`cd50c010 : nvlddmkm+0x11e2d4
+ffffbe80`f4fb7af0 fffff806`5b0f1234 : ffffe30b`0b36e450 00000000`00000000 ffffe30b`00000001 00000000`00000000 : nvlddmkm+0x11b8c7
+ffffbe80`f4fb7b80 fffff806`5b0c4a10 : ffffe30b`0b369570 ffffe30a`cd50c010 00000000`00000000 ffffe30b`0b369570 : nvlddmkm+0xf1234
+ffffbe80`f4fb7c10 fffff800`53cda980 : ffffe30b`0b369570 ffffbe80`f4fb7d20 00000000`00000000 fffff800`00000000 : nvlddmkm+0xc4a10
+ffffbe80`f4fb7ca0 fffff800`53cd9faa : 00000000`00000000 fffff800`00000000 00000000`00000000 00000000`00000000 : nt!KiRetireDpcList+0x1c0
+ffffbe80`f4fb7d60 fffff800`53c873b5 : fffff800`53c00000 ffffbe80`f4fb3000 00000000`00000000 00000000`00000000 : nt!KiIdleSummary+0x3a
+ffffbe80`f4fb7d90 00000000`00000000 : ffffbe80`f4fb8000 ffffbe80`f4fb3000 00000000`00000000 00000000`00000000 : nt!KiIdleLoop+0x85
+
+SYMBOL_NAME:  nvlddmkm+1847ac0
+
+FOLLOWUP_NAME:  MachineOwner
+
+MODULE_NAME: nvlddmkm
+
+IMAGE_NAME:  nvlddmkm.sys
+
+DEBUG_FLR_IMAGE_TIMESTAMP:  65356a12
+
+STACK_COMMAND:  .cxr; .ecxr ; kb
+
+BUCKET_ID_FUNC_OFFSET:  1847ac0
+
+FAILURE_BUCKET_ID:  AV_nvlddmkm!unknown_function
+
+OS_VERSION:  10.0.19041.3570
+
+BUILDLAB_STR:  vb_release
+
+OSPLATFORM_TYPE:  x64
+
+OSNAME:  Windows 10
+
+FAILURE_ID_HASH:  {8a2e1c3f-7d4b-5e2a-9f1c-3d7e4b2a5c8d}
+
+Followup:     MachineOwner
