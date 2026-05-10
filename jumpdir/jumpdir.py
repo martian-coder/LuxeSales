@@ -142,34 +142,30 @@ def fuzzy_match(query: str, text: str) -> tuple:
 
 
 SKIP_DIRS = {
-    # Windows
-    "Windows", "System32", "SysWOW64", "$Recycle.Bin", "ProgramData",
-    "AppData", "Temp", "temp", "node_modules", ".git", "__pycache__",
-    # Unix
+    "Windows", "System32", "SysWOW64", "WinSxS", "$Recycle.Bin",
+    "ProgramData", "AppData", "Temp", "temp", "node_modules",
+    ".git", "__pycache__", "venv", ".venv", "dist", "build",
     "proc", "sys", "dev", "run", "snap", "boot",
 }
 
 
-def _scan_dirs(roots: list, max_depth: int = 4) -> list:
-    """Walk roots up to max_depth, return list of dir paths."""
+def _bfs_scan(root: Path, max_depth: int) -> list:
+    """BFS directory scan up to max_depth levels under root."""
     found = []
-    for root in roots:
-        root = Path(root)
-        if not root.is_dir():
-            continue
+    queue = [(root, 0)]
+    while queue:
+        current, depth = queue.pop(0)
         try:
-            for entry in root.rglob("*"):
+            for child in current.iterdir():
                 try:
-                    if not entry.is_dir():
+                    if not child.is_dir():
                         continue
-                    # Skip hidden and noise dirs
-                    if any(part.startswith(".") or part in SKIP_DIRS
-                           for part in entry.parts):
+                    name = child.name
+                    if name.startswith(".") or name in SKIP_DIRS:
                         continue
-                    # Depth guard relative to root
-                    depth = len(entry.relative_to(root).parts)
-                    if depth <= max_depth:
-                        found.append(str(entry))
+                    found.append(str(child))
+                    if depth < max_depth:
+                        queue.append((child, depth + 1))
                 except (PermissionError, OSError):
                     continue
         except (PermissionError, OSError):
@@ -177,17 +173,30 @@ def _scan_dirs(roots: list, max_depth: int = 4) -> list:
     return found
 
 
-def _discover_roots() -> list:
-    """Return a sensible set of roots to scan."""
-    roots = [Path.cwd()]
-    # Walk up to drive/fs root
-    p = Path.cwd()
-    while p != p.parent:
-        roots.append(p.parent)
-        p = p.parent
-    # Home dir
-    roots.append(Path.home())
-    return list(dict.fromkeys(roots))  # dedupe, preserve order
+def _discover() -> list:
+    """Collect all candidate directories to search."""
+    seen: set = set()
+    result = []
+
+    def add(paths):
+        for p in paths:
+            if p not in seen:
+                seen.add(p)
+                result.append(p)
+
+    cwd = Path.cwd()
+
+    # 1. Everything under cwd, deep
+    add(_bfs_scan(cwd, max_depth=5))
+
+    # 2. Drive / filesystem root — shallow (breadth only, depth 2)
+    drive_root = Path(cwd.anchor)
+    add(_bfs_scan(drive_root, max_depth=2))
+
+    # 3. Home dir
+    add(_bfs_scan(Path.home(), max_depth=3))
+
+    return result
 
 
 def rank(query: str, db: dict) -> list:
@@ -211,7 +220,7 @@ def rank(query: str, db: dict) -> list:
         seen[path] = int(name_score + visits * 3 + recency)
 
     # 2. Auto-discovered dirs from filesystem
-    for path in _scan_dirs(_discover_roots()):
+    for path in _discover():
         if path in seen:
             continue
         name = Path(path).name
