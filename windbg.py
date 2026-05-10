@@ -87,7 +87,7 @@ def analyse(dump_text: str, want_commands: bool) -> dict:
     try:
         message = client.messages.create(
             model="claude-opus-4-7",
-            max_tokens=1024,
+            max_tokens=2048,
             system=SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user_content}],
         )
