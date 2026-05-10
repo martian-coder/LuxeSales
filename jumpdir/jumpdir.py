@@ -348,6 +348,64 @@ def _clear_tui() -> None:
 # Interactive picker
 # ---------------------------------------------------------------------------
 
+def _render_scope_picker() -> None:
+    drives = _get_drives()
+    drive_opts = "  ".join(
+        f"{_BD}\033[93m[{d[0]}]{_RS} {d}"
+        for d in drives
+        if d[0].upper() not in ("C",)   # list all drives
+    )
+    rows = [
+        f"\033[2K\r{_BG_HEADER}{_W}{_BD}  JumpDir  — Pick a search scope  {_RS}",
+        f"\033[2K\r",
+        f"\033[2K\r  {_C}{_BD}[L]{_RS}  Local   — current folder tree",
+        f"\033[2K\r  {_C}{_BD}[C]{_RS}  C:\\     — entire C: drive",
+    ]
+    for d in drives:
+        letter = d[0].upper()
+        if letter == "C":
+            continue
+        rows.append(f"\033[2K\r  {_C}{_BD}[{letter}]{_RS}  {d}    — entire {letter}: drive")
+    rows += [
+        f"\033[2K\r  {_C}{_BD}[G]{_RS}  Global  — all drives",
+        f"\033[2K\r",
+        f"\033[2K\r  {_DM}Press a key...{_RS}",
+    ]
+    _tty.write("\n".join(rows))
+    _tty.flush()
+    return len(rows)
+
+
+def pick_scope() -> str | None:
+    """Show scope menu, return scope string or None on Esc."""
+    global _drawn
+    _drawn = 0
+    _enable_ansi()
+    _tty.write("\033[?25l")
+    _tty.flush()
+    try:
+        n = _render_scope_picker()
+        _drawn = n
+        while True:
+            key = _getch()
+            if key is None:
+                continue
+            if key == 'ESC':
+                return None
+            if isinstance(key, str) and len(key) == 1:
+                k = key.upper()
+                if k == 'L': return "local"
+                if k == 'G': return "global"
+                # Any drive letter
+                drives = [d[0].upper() for d in _get_drives()]
+                if k in drives:
+                    return k
+    except KeyboardInterrupt:
+        return None
+    finally:
+        _clear_tui()
+
+
 def interactive_pick(initial_query: str, db: dict, scope: str = "local") -> str | None:
     global _drawn
     _drawn = 0
@@ -501,11 +559,17 @@ def main() -> None:
     if args.init_zsh:  print(_ZSH_INIT.format(script=script)); return
     if args.add:       record_visit(args.add); return
 
-    # Resolve scope
+    # Resolve scope — if no flag given, show scope picker first
+    explicit_scope = args.global_search or args.drive_d or args.drive_c or (args.scope != "local")
     scope = args.scope
     if args.global_search: scope = "global"
     elif args.drive_d:     scope = "D"
     elif args.drive_c:     scope = "C"
+
+    if not explicit_scope:
+        scope = pick_scope()
+        if scope is None:
+            return   # user pressed Esc at scope menu
 
     db   = load_db()
     seed = args.pick if args.pick is not None else args.query
