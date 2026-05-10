@@ -2,8 +2,8 @@
 """
 JumpDir Advanced - Interactive fuzzy directory navigator with live filtering.
 
-Windows CMD:  just run  python jumpdir.py   (or use j.bat after adding to PATH)
-bash setup:   echo 'eval "$(python3 jumpdir.py --init)"'    >> ~/.bashrc
+Windows CMD:  j.bat            (run once to cd; add jumpdir folder to PATH)
+bash setup:   echo 'eval "$(python3 jumpdir.py --init)"'     >> ~/.bashrc
 zsh  setup:   echo 'eval "$(python3 jumpdir.py --init-zsh)"' >> ~/.zshrc
 """
 
@@ -15,7 +15,23 @@ import argparse
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
-# Cross-platform raw keypress reader
+# Terminal device — TUI always writes here so stdout stays clean for capture
+# ---------------------------------------------------------------------------
+
+def _open_tty():
+    try:
+        if sys.platform == "win32":
+            return open("CONOUT$", "w", buffering=1, encoding="utf-8", errors="replace")
+        else:
+            return open("/dev/tty", "w", buffering=1)
+    except OSError:
+        return sys.stderr
+
+_tty = _open_tty()
+
+
+# ---------------------------------------------------------------------------
+# Cross-platform raw keypress (reads from physical console, not stdin)
 # ---------------------------------------------------------------------------
 
 if sys.platform == "win32":
@@ -23,27 +39,30 @@ if sys.platform == "win32":
     import ctypes
 
     def _enable_ansi():
-        kernel32 = ctypes.windll.kernel32
-        handle = kernel32.GetStdHandle(-11)  # STD_OUTPUT_HANDLE
+        # Open CONOUT$ so we get the real handle even when stdout is redirected
+        hnd = ctypes.windll.kernel32.CreateFileW(
+            "CONOUT$", 0x40000000, 0x03, None, 0x03, 0, None
+        )
         mode = ctypes.c_ulong()
-        kernel32.GetConsoleMode(handle, ctypes.byref(mode))
-        kernel32.SetConsoleMode(handle, mode.value | 0x0004)  # ENABLE_VIRTUAL_TERMINAL_PROCESSING
+        ctypes.windll.kernel32.GetConsoleMode(hnd, ctypes.byref(mode))
+        ctypes.windll.kernel32.SetConsoleMode(hnd, mode.value | 0x0004)
+        ctypes.windll.kernel32.CloseHandle(hnd)
 
     def _getch():
         ch = msvcrt.getwch()
-        if ch in ('\x00', '\xe0'):       # special key prefix
+        if ch in ('\x00', '\xe0'):
             ch2 = msvcrt.getwch()
             if ch2 == 'H': return 'UP'
             if ch2 == 'P': return 'DOWN'
             if ch2 == 'S': return 'DEL'
             return None
-        if ch == '\r':   return 'ENTER'
-        if ch == '\x1b': return 'ESC'
+        if ch == '\r':             return 'ENTER'
+        if ch == '\x1b':           return 'ESC'
         if ch in ('\x08', '\x7f'): return 'BACKSPACE'
         return ch
 
 else:
-    import termios, tty
+    import termios, tty as _tty_mod
 
     def _enable_ansi():
         pass
@@ -52,7 +71,7 @@ else:
         fd = sys.stdin.fileno()
         old = termios.tcgetattr(fd)
         try:
-            tty.setraw(fd)
+            _tty_mod.setraw(fd)
             ch = sys.stdin.read(1)
             if ch == '\x1b':
                 nxt = sys.stdin.read(1)
@@ -61,7 +80,7 @@ else:
                     if code == 'A': return 'UP'
                     if code == 'B': return 'DOWN'
                     if code == '3':
-                        sys.stdin.read(1)  # trailing ~
+                        sys.stdin.read(1)
                         return 'DEL'
                 return 'ESC'
             if ch in ('\r', '\n'):         return 'ENTER'
@@ -102,44 +121,8 @@ def record_visit(path: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Fuzzy matching
+# Directory discovery
 # ---------------------------------------------------------------------------
-
-def fuzzy_match(query: str, text: str) -> tuple:
-    """Returns (score, matched_indices). score=0 means no match."""
-    if not query:
-        return 1, []
-
-    q = query.lower()
-    t = text.lower()
-
-    idx = t.find(q)
-    if idx != -1:
-        score = 800 + (100 if idx == 0 else 0) + len(q)
-        return score, list(range(idx, idx + len(q)))
-
-    qi = 0
-    matched = []
-    score = 0
-    consecutive = 0
-    prev = -2
-
-    for i, ch in enumerate(t):
-        if qi < len(q) and ch == q[qi]:
-            matched.append(i)
-            if i == prev + 1:
-                consecutive += 1
-                score += 10 * consecutive
-            else:
-                consecutive = 1
-                score += 1
-            prev = i
-            qi += 1
-
-    if qi < len(q):
-        return 0, []
-    return score, matched
-
 
 SKIP_DIRS = {
     "Windows", "System32", "SysWOW64", "WinSxS", "$Recycle.Bin",
@@ -149,19 +132,18 @@ SKIP_DIRS = {
 }
 
 
-def _bfs_scan(root: Path, max_depth: int) -> list:
-    """BFS directory scan up to max_depth levels under root."""
+def _bfs(root: Path, max_depth: int) -> list:
     found = []
     queue = [(root, 0)]
     while queue:
-        current, depth = queue.pop(0)
+        cur, depth = queue.pop(0)
         try:
-            for child in current.iterdir():
+            for child in sorted(cur.iterdir()):
                 try:
                     if not child.is_dir():
                         continue
-                    name = child.name
-                    if name.startswith(".") or name in SKIP_DIRS:
+                    n = child.name
+                    if n.startswith(".") or n in SKIP_DIRS:
                         continue
                     found.append(str(child))
                     if depth < max_depth:
@@ -174,7 +156,6 @@ def _bfs_scan(root: Path, max_depth: int) -> list:
 
 
 def _discover() -> list:
-    """Collect all candidate directories to search."""
     seen: set = set()
     result = []
 
@@ -184,53 +165,67 @@ def _discover() -> list:
                 seen.add(p)
                 result.append(p)
 
-    cwd = Path.cwd()
+    cwd   = Path.cwd()
+    drive = Path(cwd.anchor)   # D:\ on Windows, / on Unix
+    home  = Path.home()
 
-    # 1. Everything under cwd, deep
-    add(_bfs_scan(cwd, max_depth=5))
-
-    # 2. Drive / filesystem root — shallow (breadth only, depth 2)
-    drive_root = Path(cwd.anchor)
-    add(_bfs_scan(drive_root, max_depth=2))
-
-    # 3. Home dir
-    add(_bfs_scan(Path.home(), max_depth=3))
+    add(_bfs(cwd,   max_depth=5))   # deep local scan
+    add(_bfs(drive, max_depth=4))   # full drive, aggressive skip list handles noise
+    add(_bfs(home,  max_depth=4))   # home tree
 
     return result
 
 
-def rank(query: str, db: dict) -> list:
-    now = time.time()
-    seen: dict[str, int] = {}
+# ---------------------------------------------------------------------------
+# Fuzzy match + ranking
+# ---------------------------------------------------------------------------
 
-    # 1. Frecency-boosted entries from DB
+def fuzzy_match(query: str, text: str) -> tuple:
+    if not query:
+        return 1, []
+    q, t = query.lower(), text.lower()
+    idx = t.find(q)
+    if idx != -1:
+        return 800 + (100 if idx == 0 else 0) + len(q), list(range(idx, idx + len(q)))
+    qi, matched, score, cons, prev = 0, [], 0, 0, -2
+    for i, ch in enumerate(t):
+        if qi < len(q) and ch == q[qi]:
+            matched.append(i)
+            cons = cons + 1 if i == prev + 1 else 1
+            score += 10 * cons if i == prev + 1 else 1
+            prev = i
+            qi += 1
+    return (score, matched) if qi == len(q) else (0, [])
+
+
+def rank(query: str, db: dict, dirs: list) -> list:
+    now = time.time()
+    seen: dict = {}
+
     for path, meta in db.items():
         if not Path(path).is_dir():
             continue
         name = Path(path).name
-        name_score, _ = fuzzy_match(query, name)
-        if name_score == 0:
-            path_score, _ = fuzzy_match(query, path)
-            if path_score == 0:
-                continue
-            name_score = path_score // 2
-        visits = meta.get("visits", 1)
-        age_days = (now - meta.get("last", now)) / 86400
-        recency = max(0.0, 20.0 - age_days * 2)
-        seen[path] = int(name_score + visits * 3 + recency)
+        sc, _ = fuzzy_match(query, name)
+        if sc == 0:
+            sc, _ = fuzzy_match(query, path)
+            sc = sc // 2
+        if sc == 0:
+            continue
+        age = (now - meta.get("last", now)) / 86400
+        seen[path] = int(sc + meta.get("visits", 1) * 3 + max(0.0, 20 - age * 2))
 
-    # 2. Auto-discovered dirs from filesystem
-    for path in _discover():
+    for path in dirs:
         if path in seen:
             continue
         name = Path(path).name
-        name_score, _ = fuzzy_match(query, name)
-        if name_score == 0:
-            path_score, _ = fuzzy_match(query, path)
-            if path_score == 0:
-                continue
-            name_score = path_score // 2
-        seen[path] = int(name_score)
+        sc, _ = fuzzy_match(query, name)
+        if sc == 0:
+            sc, _ = fuzzy_match(query, path)
+            sc = sc // 2
+        if sc == 0:
+            continue
+        seen[path] = sc
 
     results = list(seen.items())
     results.sort(key=lambda x: -x[1])
@@ -238,91 +233,80 @@ def rank(query: str, db: dict) -> list:
 
 
 # ---------------------------------------------------------------------------
-# ANSI TUI (works on Windows CMD, PowerShell, bash, zsh)
+# ANSI TUI — renders to _tty (console device), not stdout
 # ---------------------------------------------------------------------------
-
-_ESC  = "\033["
-_RST  = "\033[0m"
-_BOLD = "\033[1m"
-_DIM  = "\033[2m"
 
 def _render_name(name: str, indices: list) -> str:
     idx_set = set(indices)
-    out = []
-    for i, ch in enumerate(name):
-        if i in idx_set:
-            out.append(f"\033[33m\033[1m{ch}\033[0m")  # yellow bold
-        else:
-            out.append(ch)
-    return "".join(out)
+    return "".join(
+        f"\033[33m\033[1m{ch}\033[0m" if i in idx_set else ch
+        for i, ch in enumerate(name)
+    )
 
 
-_drawn_lines = 0
+_drawn = 0
 
 
-def _render(query: str, results: list, selected: int, max_rows: int = 15) -> None:
-    global _drawn_lines
-    out = []
-
-    # Move cursor up to overwrite previous render
-    if _drawn_lines > 0:
-        out.append(f"\033[{_drawn_lines}A")
-
+def _render(query: str, results: list, selected: int) -> None:
+    global _drawn
     rows = []
-    # Header
+
+    if _drawn > 0:
+        rows.append(f"\033[{_drawn}A")
+
     rows.append(f"\033[2K\r\033[46m\033[30m\033[1m JumpDir  ↑↓ navigate  Enter jump  Esc quit \033[0m")
-    # Prompt
     rows.append(f"\033[2K\r\033[36m\033[1m > \033[0m{query}\033[1m_\033[0m")
 
-    visible = results[:max_rows]
-    for i, (path, _) in enumerate(visible):
+    for i, (path, _) in enumerate(results[:15]):
         name = Path(path).name
-        _, indices = fuzzy_match(query, name)
-        pad = max(0, 30 - len(name)) * " "
+        _, idx = fuzzy_match(query, name)
+        pad = " " * max(0, 30 - len(name))
         if i == selected:
-            row = f"\033[2K\r\033[42m\033[30m\033[1m  {name}{pad}  {path}\033[0m"
+            rows.append(f"\033[2K\r\033[42m\033[30m\033[1m  {name}{pad}  {path}\033[0m")
         else:
-            name_fmt = _render_name(name, indices)
-            row = f"\033[2K\r  {name_fmt}{pad}  \033[2m{path}\033[0m"
-        rows.append(row)
+            rows.append(f"\033[2K\r  {_render_name(name, idx)}{pad}  \033[2m{path}\033[0m")
 
     if not results:
         rows.append(f"\033[2K\r\033[2m  (no matches — keep typing)\033[0m")
 
-    _drawn_lines = len(rows)
-    sys.stdout.write("\n".join(rows))
-    sys.stdout.flush()
+    _drawn = len(rows)
+    _tty.write("\n".join(rows))
+    _tty.flush()
 
 
-def _clear_tui() -> None:
-    global _drawn_lines
-    if _drawn_lines > 0:
-        sys.stdout.write(f"\033[{_drawn_lines}A")
-        for _ in range(_drawn_lines):
-            sys.stdout.write("\033[2K\r\n")
-        sys.stdout.write(f"\033[{_drawn_lines}A")
-    sys.stdout.write("\033[?25h")  # show cursor
-    sys.stdout.flush()
-    _drawn_lines = 0
+def _clear() -> None:
+    global _drawn
+    if _drawn > 0:
+        _tty.write(f"\033[{_drawn}A")
+        _tty.write("\033[2K\r\n" * _drawn)
+        _tty.write(f"\033[{_drawn}A")
+    _tty.write("\033[?25h")
+    _tty.flush()
+    _drawn = 0
 
 
-def interactive_pick(initial_query: str, db: dict):
-    global _drawn_lines
-    _drawn_lines = 0
-
+def interactive_pick(initial_query: str, db: dict) -> str | None:
+    global _drawn
+    _drawn = 0
     _enable_ansi()
-    sys.stdout.write("\033[?25l")  # hide cursor
-    sys.stdout.flush()
 
-    query = initial_query
+    _tty.write("\033[?25l")
+    _tty.write("\033[2K\r\033[2m Scanning directories...\033[0m")
+    _tty.flush()
+
+    dirs = _discover()
+
+    _tty.write("\033[2K\r")
+    _tty.flush()
+
+    query    = initial_query
     selected = 0
-    results = rank(query, db)
+    results  = rank(query, db, dirs)
 
     try:
         while True:
             _render(query, results, selected)
             key = _getch()
-
             if key is None:
                 continue
             if key == 'ESC':
@@ -334,21 +318,15 @@ def interactive_pick(initial_query: str, db: dict):
             elif key == 'DOWN':
                 selected = min(len(results) - 1, selected + 1) if results else 0
             elif key == 'BACKSPACE':
-                query = query[:-1]
-                results = rank(query, db)
-                selected = 0
+                query = query[:-1]; results = rank(query, db, dirs); selected = 0
             elif key == 'DEL':
-                query = ""
-                results = rank(query, db)
-                selected = 0
+                query = "";          results = rank(query, db, dirs); selected = 0
             elif isinstance(key, str) and len(key) == 1 and ord(key) >= 32:
-                query += key
-                results = rank(query, db)
-                selected = 0
+                query += key;        results = rank(query, db, dirs); selected = 0
     except KeyboardInterrupt:
         return None
     finally:
-        _clear_tui()
+        _clear()
 
 
 # ---------------------------------------------------------------------------
@@ -389,41 +367,28 @@ add-zsh-hook chpwd _jd_track
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="JumpDir Advanced")
-    parser.add_argument("--init",     action="store_true", help="Print bash integration")
-    parser.add_argument("--init-zsh", action="store_true", help="Print zsh integration")
-    parser.add_argument("--add",  metavar="PATH", help="Record a directory visit")
-    parser.add_argument("--pick", nargs="?", const="", metavar="QUERY",
-                        help="Open interactive picker")
-    parser.add_argument("query", nargs="?", default="")
+    parser.add_argument("--init",     action="store_true")
+    parser.add_argument("--init-zsh", action="store_true")
+    parser.add_argument("--add",  metavar="PATH")
+    parser.add_argument("--pick", nargs="?", const="", metavar="QUERY")
+    parser.add_argument("query",  nargs="?", default="")
     args = parser.parse_args()
 
     script = Path(__file__).resolve()
 
     if args.init:
-        print(_BASH_INIT.format(script=script))
-        return
-
+        print(_BASH_INIT.format(script=script)); return
     if args.init_zsh:
-        print(_ZSH_INIT.format(script=script))
-        return
-
+        print(_ZSH_INIT.format(script=script)); return
     if args.add:
-        record_visit(args.add)
-        return
+        record_visit(args.add); return
 
-    db = load_db()
+    db   = load_db()
     seed = args.pick if args.pick is not None else args.query
-
-    # Fast path: single unambiguous match
-    if seed and db:
-        hits = rank(seed, db)
-        if len(hits) == 1:
-            print(hits[0][0])
-            return
 
     chosen = interactive_pick(seed, db)
     if chosen:
-        print(chosen)
+        print(chosen)          # stdout — captured by j.bat / shell function
 
 
 if __name__ == "__main__":
