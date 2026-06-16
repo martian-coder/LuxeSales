@@ -1,0 +1,14 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Copy More
+GenericName=Clipboard Manager
+Comment=Copy more. Switch less. Paste anything. — Smart multi-clipboard manager with categories and search.
+Exec=python3 /usr/local/bin/copymore
+Icon=edit-paste
+Terminal=false
+Categories=Utility;TextTools;
+Keywords=clipboard;copy;paste;history;manager;copymore;
+StartupNotify=false
+X-GNOME-Autostart-enabled=true
+X-GNOME-Autostart-Delay=3
